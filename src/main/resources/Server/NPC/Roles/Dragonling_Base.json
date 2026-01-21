@@ -1,0 +1,85 @@
+{
+  "Type": "Generic",
+  "Appearance": { "Compute": "Appearance" },
+  "MotionControllerList": [
+    {
+      "Type": "Walk",
+      "MaxWalkSpeed": 6,
+      "Gravity": 10,
+      "MaxFallSpeed": 8,
+      "Acceleration": 10
+    }
+  ],
+  "MaxHealth": { "Compute": "MaxHealth" },
+  "MaxSpeed": 6,
+  "WanderRadius": { "Compute": "WanderRadius" },
+  "ApplySeparation": true,
+  "SeparationDistance": 1.5,
+  "Instructions": [
+    {
+      "Instructions": [
+        {
+          "Sensor": {
+            "Type": "ReadPosition",
+            "Slot": "LastSeen",
+            "Range": 512
+          },
+          "BodyMotion": {
+            "Type": "Seek",
+            "SlowDownDistance": 3.0,
+            "StopDistance": 2.0,
+            "RelativeSpeed": 0.8
+          },
+          "Actions": [
+            {
+              "Type": "PlayAnimation",
+              "Slot": "Status",
+              "AnimationId": "NPC/Pets/Dragonling/Animations/Walk"
+            }
+          ]
+        },
+        {
+          "Sensor": {
+            "Type": "Any"
+          },
+          "BodyMotion": {
+            "Type": "WanderInCircle",
+            "Radius": { "Compute": "WanderRadius" },
+            "MaxHeadingChange": 45,
+            "RelativeSpeed": 0.6,
+            "MinWalkTime": 1,
+            "RelaxedMoveConstraints": false
+          },
+          "Actions": [
+            {
+              "Type": "PlayAnimation",
+              "Slot": "Status",
+              "AnimationId": "NPC/Pets/Dragonling/Animations/Idle"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "NameTranslationKey": {
+    "Compute": "NameTranslationKey"
+  },
+  "Parameters": {
+    "Appearance": {
+      "Value": "Dragonling",
+      "Description": "Model to be used"
+    },
+    "MaxHealth": {
+      "Value": 50,
+      "Description": "Max health for the NPC"
+    },
+    "WanderRadius": {
+      "Value": 8,
+      "Description": "Wander Radius"
+    },
+    "NameTranslationKey": {
+      "Value": "server.npcRoles.Dragonling.name",
+      "Description": "Translation key for NPC name display"
+    }
+  }
+}

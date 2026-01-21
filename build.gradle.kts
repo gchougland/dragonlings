@@ -3,7 +3,7 @@ plugins {
     id("hytale-mod") version "0.+"
 }
 
-group = "com.example"
+group = "hexvane"
 version = "0.1.0"
 val javaVersion = 25
 

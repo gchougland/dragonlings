@@ -1,0 +1,19 @@
+{
+  "Environments": [
+    "Env_Zone1_Forests",
+    "Env_Zone1_Autumn",
+    "Env_Zone1_Azure"
+  ],
+  "NPCs": [
+    {
+      "Weight": 50,
+      "SpawnBlockSet": "Soil",
+      "Id": "Dragonling_Green",
+      "Flock": "Group_Tiny"
+    }
+  ],
+  "DayTimeRange": [
+    6,
+    18
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "Spawners": [
+    {
+      "SpawnerId": "Dragonling_Red_Fire"
+    }
+  ],
+  "LifeSpan": 0.8,
+  "CullDistance": 50.0,
+  "BoundingRadius": 2.0
+}

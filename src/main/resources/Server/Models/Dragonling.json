@@ -1,0 +1,49 @@
+{
+  "Model": "NPC/Pets/Dragonling/Models/Model.blockymodel",
+  "Texture": "NPC/Pets/Dragonling/Models/GreenDragonling.png",
+  "RandomAttachmentSets": {},
+  "HitBox": {
+    "Min": {
+      "X": -0.35,
+      "Y": 0,
+      "Z": -0.35
+    },
+    "Max": {
+      "X": 0.35,
+      "Y": 1.0,
+      "Z": 0.35
+    }
+  },
+  "EyeHeight": 0.8,
+  "AnimationSets": {
+    "Idle": {
+      "Animations": [
+        {
+          "Animation": "NPC/Pets/Dragonling/Animations/Idle.blockyanim"
+        }
+      ]
+    },
+    "Walk": {
+      "Animations": [
+        {
+          "Animation": "NPC/Pets/Dragonling/Animations/Walk.blockyanim"
+        }
+      ]
+    },
+    "Run": {
+      "Animations": [
+        {
+          "Animation": "NPC/Pets/Dragonling/Animations/Run.blockyanim"
+        }
+      ]
+    },
+    "Blow": {
+      "Animations": [
+        {
+          "Animation": "NPC/Pets/Dragonling/Animations/Blow.blockyanim",
+          "Looping": false
+        }
+      ]
+    }
+  }
+}

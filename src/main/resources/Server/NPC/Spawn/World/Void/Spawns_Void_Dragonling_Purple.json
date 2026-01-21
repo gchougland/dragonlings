@@ -1,0 +1,19 @@
+{
+  "Environments": [
+    "Env_Zone1_Plains",
+    "Env_Zone2_Savanna",
+    "Env_Zone3_Tundra"
+  ],
+  "NPCs": [
+    {
+      "Weight": 3,
+      "SpawnBlockSet": "Soil",
+      "Id": "Dragonling_Purple",
+      "Flock": "Group_Tiny"
+    }
+  ],
+  "DayTimeRange": [
+    18,
+    6
+  ]
+}

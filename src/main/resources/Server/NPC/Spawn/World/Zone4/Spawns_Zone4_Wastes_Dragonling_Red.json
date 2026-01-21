@@ -1,0 +1,17 @@
+{
+  "Environments": [
+    "Env_Zone4_Wastes"
+  ],
+  "NPCs": [
+    {
+      "Weight": 5,
+      "SpawnBlockSet": "Soil",
+      "Id": "Dragonling_Red",
+      "Flock": "Group_Tiny"
+    }
+  ],
+  "DayTimeRange": [
+    6,
+    18
+  ]
+}

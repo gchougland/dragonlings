@@ -1,0 +1,17 @@
+{
+  "Environments": [
+    "Env_Zone1_Shores"
+  ],
+  "NPCs": [
+    {
+      "Weight": 5,
+      "SpawnBlockSet": "Soil",
+      "Id": "Dragonling_Blue",
+      "Flock": "Group_Tiny"
+    }
+  ],
+  "DayTimeRange": [
+    6,
+    18
+  ]
+}

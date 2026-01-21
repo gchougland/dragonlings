@@ -1,1 +1,12 @@
-items.Example_Block.name=Example Block
+npcRoles.Dragonling.name=Dragonling
+npcRoles.Dragonling_Green.name=Green Dragonling
+npcRoles.Dragonling_Blue.name=Blue Dragonling
+npcRoles.Dragonling_Red.name=Red Dragonling
+npcRoles.Dragonling_Purple.name=Purple Dragonling
+items.Dragon_Whistle.name=Dragon Whistle
+dragonlings.tamed.success=You successfully tamed the {dragonling}!
+dragonlings.tamed.failed=The {dragonling} resisted your attempt to tame it.
+dragonlings.leash.notOwned=This dragonling doesn't belong to you.
+dragonlings.leash.modeEnter=Right-click a block to set the leash position for {dragonling}.
+dragonlings.leash.set=Leashed {dragonling} to the selected location.
+dragonlings.leash.unleashed=Unleashed {dragonling}. It will now follow you again.

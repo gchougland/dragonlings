@@ -1,0 +1,35 @@
+{
+  "TranslationProperties": {
+    "Name": "server.items.Dragon_Whistle.name"
+  },
+  "ItemLevel": 1,
+  "Model": "Items/Tools/Dragon_Whistle/Dragon_Whistle.blockymodel",
+  "Categories": [
+    "Tools"
+  ],
+  "PlayerAnimationsId": "Item",
+  "Tags": {
+    "Type": [
+      "Tool"
+    ]
+  },
+  "MaxStack": 1,
+  "ItemSoundSetId": "ISS_Weapons_Wood",
+  "Texture": "Items/Tools/Dragon_Whistle/Dragon_Whistle.png",
+  "Icon": "Icons/ItemsGenerated/Dragon_Whistle.png",
+  "IconProperties": {
+    "Scale": 0.9,
+    "Rotation": [
+      327,
+      239,
+      326
+    ],
+    "Translation": [
+      0,
+      -4
+    ]
+  },
+  "Interactions": {
+    "Secondary": "DragonlingUseNPC"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "Type": "Variant",
+  "Reference": "Dragonling_Base",
+  "Modify": {
+    "Appearance": "Dragonling_Purple",
+    "MaxHealth": 50,
+    "WanderRadius": 7,
+    "NameTranslationKey": {
+      "Compute": "NameTranslationKey"
+    }
+  },
+  "Parameters": {
+    "NameTranslationKey": {
+      "Value": "server.npcRoles.Dragonling_Purple.name",
+      "Description": "Translation key for NPC name display"
+    }
+  }
+}
