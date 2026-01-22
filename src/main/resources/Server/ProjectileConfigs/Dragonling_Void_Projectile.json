@@ -1,24 +1,20 @@
 {
-  "Model": "Arrow_Crude",
-  "SpawnRotationOffset": {
-    "Pitch": 0,
-    "Yaw": 0,
-    "Roll": 0
-  },
+  "Model": "Dragonling_Void_Orb",
   "Physics": {
     "Type": "Standard",
-    "Gravity": 5,
+    "Gravity": 0,
     "TerminalVelocityAir": 60,
     "TerminalVelocityWater": 15,
     "RotationMode": "VelocityDamped",
     "Bounciness": 0.0,
-    "SticksVertically": false
+    "SticksVertically": true
   },
-  "LaunchForce": 40,
+  "LaunchForce": 15,
+  "LaunchWorldSoundEventId": "SFX_Dragonling_Purple_Shoot",
   "SpawnOffset": {
     "X": 0,
-    "Y": 0.8,
-    "Z": 0.3
+    "Y": 0,
+    "Z": 0
   },
   "Interactions": {
     "ProjectileHit": {
@@ -32,7 +28,7 @@
           "DamageCalculator": {
             "Type": "Absolute",
             "BaseDamage": {
-              "Physical": 5
+              "Physical": 20
             }
           },
           "DamageEffects": {

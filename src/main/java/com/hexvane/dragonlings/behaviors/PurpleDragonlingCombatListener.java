@@ -5,11 +5,9 @@ import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
-import com.hypixel.hytale.component.system.EntityEventSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
-import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
@@ -44,6 +42,9 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
     
     // Track last attack time per dragonling
     private final Map<Ref<EntityStore>, Double> lastAttackTime = new HashMap<>();
+    // Track combat targets per dragonling (dragonling ref -> target entity ref)
+    // Static so both listener and behavior can access it
+    private static final Map<Ref<EntityStore>, Ref<EntityStore>> combatTargets = new HashMap<>();
     
     public PurpleDragonlingCombatListener(
             @Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType,
@@ -88,30 +89,22 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
         
         UUID attackerUUID = attackerUUIDComponent.getUuid();
         
-        LOGGER.atInfo().log("[PurpleCombat] Player %s attacked entity, checking for Purple dragonlings to assist", attackerUUID);
-        
         // Check if target is hostile (not a player, not tamed by the attacker)
         NPCEntity targetNPC = store.getComponent(targetRef, NPCEntity.getComponentType());
         if (targetNPC == null) {
-            LOGGER.atInfo().log("[PurpleCombat] Target is not an NPC, skipping");
             return; // Not an NPC, or already handled
         }
-        
-        LOGGER.atInfo().log("[PurpleCombat] Target NPC: %s", targetNPC.getRoleName());
         
         // Check if target is hostile to the attacker
         // For now, assume all NPCs that aren't tamed by the attacker are hostile
         DragonlingData targetData = store.getComponent(targetRef, DragonlingData.getComponentType());
         if (targetData != null && targetData.isTamed() && attackerUUID.equals(targetData.getOwnerUUID())) {
-            LOGGER.atInfo().log("[PurpleCombat] Target is tamed by attacker, not assisting");
             return; // Target is tamed by attacker, don't assist
         }
         
         // Find all Purple dragonlings owned by the attacker
         Query<EntityStore> dragonlingQuery = Query.and(this.npcComponentType, this.dragonlingDataType);
         double currentTime = System.currentTimeMillis() / 1000.0;
-        
-        LOGGER.atInfo().log("[PurpleCombat] Searching for Purple dragonlings owned by %s", attackerUUID);
         
         store.forEachChunk(dragonlingQuery, (dragonlingChunk, chunkCommandBuffer) -> {
             for (int i = 0; i < dragonlingChunk.size(); i++) {
@@ -132,22 +125,17 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                 
                 Ref<EntityStore> dragonlingRef = dragonlingChunk.getReferenceTo(i);
                 
-                LOGGER.atInfo().log("[PurpleCombat] Found Purple dragonling %s owned by attacker", npcComponent.getRoleName());
-                
                 // Check cooldown
                 Double lastAttack = lastAttackTime.get(dragonlingRef);
                 if (lastAttack != null && (currentTime - lastAttack) < ATTACK_COOLDOWN) {
-                    LOGGER.atInfo().log("[PurpleCombat] %s on cooldown (%.2f seconds remaining)", 
-                        npcComponent.getRoleName(), ATTACK_COOLDOWN - (currentTime - lastAttack));
                     continue;
                 }
                 
                 // Get dragonling position and rotation
                 TransformComponent dragonlingTransform = store.getComponent(dragonlingRef, TransformComponent.getComponentType());
-                HeadRotation dragonlingRotation = store.getComponent(dragonlingRef, HeadRotation.getComponentType());
                 TransformComponent targetTransform = store.getComponent(targetRef, TransformComponent.getComponentType());
                 
-                if (dragonlingTransform == null || dragonlingRotation == null || targetTransform == null) {
+                if (dragonlingTransform == null || targetTransform == null) {
                     continue;
                 }
                 
@@ -156,16 +144,37 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                 Vector3d targetPos = targetTransform.getPosition();
                 double distance = dragonlingPos.distanceTo(targetPos);
                 
-                LOGGER.atInfo().log("[PurpleCombat] %s distance to target: %.2f (range: %.2f)", 
-                    npcComponent.getRoleName(), distance, PurpleDragonlingCombatBehavior.ATTACK_RANGE);
-                
                 if (distance > PurpleDragonlingCombatBehavior.ATTACK_RANGE) {
-                    LOGGER.atInfo().log("[PurpleCombat] %s out of range, skipping", npcComponent.getRoleName());
                     continue;
                 }
                 
-                LOGGER.atInfo().log("[PurpleCombat] %s ATTACKING target %s at distance %.2f", 
-                    npcComponent.getRoleName(), targetNPC.getRoleName(), distance);
+                // Make dragonling face the target before attacking
+                Vector3d direction = new Vector3d(targetPos).subtract(dragonlingPos).normalize();
+                Vector3d horizontalDir = direction.clone();
+                horizontalDir.y = 0; // Keep horizontal only for rotation
+                double dirLength = horizontalDir.distanceTo(Vector3d.ZERO);
+                if (dirLength > 0.01) {
+                    horizontalDir.normalize();
+                }
+                
+                // Calculate yaw to face target (same as red dragonling)
+                double yaw = Math.atan2(horizontalDir.x, horizontalDir.z) + Math.PI;
+                double pitch = -Math.asin(direction.y);
+                
+                // Set NPC body rotation to face target
+                TransformComponent transformMutable = commandBuffer.getComponent(dragonlingRef, TransformComponent.getComponentType());
+                if (transformMutable != null) {
+                    Vector3f rotation = transformMutable.getRotation();
+                    rotation.setYaw((float) yaw);
+                }
+                
+                // Set head rotation to face target
+                HeadRotation headRot = commandBuffer.ensureAndGetComponent(dragonlingRef, HeadRotation.getComponentType());
+                if (headRot != null) {
+                    Vector3f headRotation = headRot.getRotation();
+                    headRotation.setYaw((float) yaw);
+                    headRotation.setPitch((float) pitch);
+                }
                 
                 // Play Blow animation
                 npcComponent.playAnimation(dragonlingRef, 
@@ -173,44 +182,36 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                     "Blow", 
                     commandBuffer);
                 
-                LOGGER.atInfo().log("[PurpleCombat] %s playing Blow animation", npcComponent.getRoleName());
+                // Calculate mouth position for projectile spawn (particles will come from projectile trail)
+                Vector3d mouthPos;
+                double headYOffset = 0.45; // Slightly below eye height (0.8) for snout/mouth level
+                double mouthForwardOffset = 0.5; // Forward offset for mouth position (in front of head)
                 
-                // Spawn void particles
-                com.hypixel.hytale.server.core.universe.world.ParticleUtil.spawnParticleEffect(
-                    "Dragonling_Purple_Void",
-                    dragonlingPos,
-                    java.util.Collections.emptyList(),
-                    commandBuffer
-                );
+                // Calculate forward direction from yaw rotation
+                double forwardX = -Math.sin(yaw) * mouthForwardOffset;
+                double forwardZ = -Math.cos(yaw) * mouthForwardOffset;
                 
-                LOGGER.atInfo().log("[PurpleCombat] %s spawned void particles", npcComponent.getRoleName());
+                mouthPos = dragonlingPos.clone();
+                mouthPos.y += headYOffset;
+                mouthPos.x += forwardX;
+                mouthPos.z += forwardZ;
                 
-                // Calculate direction to target
-                Vector3d direction = new Vector3d(targetPos).subtract(dragonlingPos).normalize();
-                
-                // Spawn actual projectile
+                // Spawn actual projectile (particles will follow it via Trail in projectile config)
                 try {
                     ProjectileConfig projectileConfig = 
                         ProjectileConfig.getAssetMap().getAsset("Dragonling_Void_Projectile");
                     
                     if (projectileConfig != null) {
-                        LOGGER.atInfo().log("[PurpleCombat] %s spawning projectile", npcComponent.getRoleName());
-                        
-                        // Calculate spawn position (in front of dragonling)
-                        Vector3f rotation = dragonlingRotation.getRotation();
-                        Vector3d spawnPos = dragonlingPos.clone();
-                        spawnPos.add(0, 0.8, 0); // Eye height offset
-                        
                         // Spawn the projectile
+                        // spawnProjectile takes position and ADDS SpawnOffset to it (rotated by pitch/yaw)
+                        // SpawnOffset is now 0,0,0, so we pass the exact mouth position
                         ProjectileModule.get().spawnProjectile(
                             dragonlingRef,
                             commandBuffer,
                             projectileConfig,
-                            spawnPos,
-                            direction
+                            mouthPos,  // Exact mouth position - SpawnOffset is 0,0,0 so it spawns here
+                            direction  // Direction to fly
                         );
-                        
-                        LOGGER.atInfo().log("[PurpleCombat] %s projectile spawned successfully", npcComponent.getRoleName());
                     } else {
                         LOGGER.atWarning().log("[PurpleCombat] Projectile config 'Dragonling_Void_Projectile' not found, falling back to direct damage");
                         // Fallback to direct damage if config not found
@@ -226,7 +227,6 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                                 (float) PurpleDragonlingCombatBehavior.PROJECTILE_DAMAGE
                             );
                             DamageSystems.executeDamage(targetRef, commandBuffer, projectileDamage);
-                            LOGGER.atInfo().log("[PurpleCombat] %s applied direct damage (fallback)", npcComponent.getRoleName());
                         }
                     }
                 } catch (Exception e) {
@@ -234,10 +234,26 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                 }
                 
                 lastAttackTime.put(dragonlingRef, currentTime);
-                LOGGER.atInfo().log("[PurpleCombat] %s attack complete, cooldown set", npcComponent.getRoleName());
+                // Store the target so the dragonling can continue attacking it
+                combatTargets.put(dragonlingRef, targetRef);
                 break; // Only assist with one dragonling per damage event
             }
         });
+    }
+    
+    /**
+     * Get the combat target for a dragonling, or null if none.
+     */
+    @javax.annotation.Nullable
+    public static Ref<EntityStore> getCombatTarget(@Nonnull Ref<EntityStore> dragonlingRef) {
+        return combatTargets.get(dragonlingRef);
+    }
+    
+    /**
+     * Clear the combat target for a dragonling.
+     */
+    public static void clearCombatTarget(@Nonnull Ref<EntityStore> dragonlingRef) {
+        combatTargets.remove(dragonlingRef);
     }
     
     @Nonnull

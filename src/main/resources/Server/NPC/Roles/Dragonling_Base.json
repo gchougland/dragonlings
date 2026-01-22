@@ -1,6 +1,7 @@
 {
   "Type": "Generic",
   "Appearance": { "Compute": "Appearance" },
+  "DropList": "Drop_Wildlife",
   "MotionControllerList": [
     {
       "Type": "Walk",

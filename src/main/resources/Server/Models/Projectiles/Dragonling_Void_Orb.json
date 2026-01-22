@@ -1,0 +1,61 @@
+{
+  "Model": "Items/Projectiles/Projectile.blockymodel",
+  "Texture": "Items/Projectiles/Projectile_default.png",
+  "HitBox": {
+    "Max": {
+      "X": 0.1,
+      "Y": 0.1,
+      "Z": 0.1
+    },
+    "Min": {
+      "X": -0.1,
+      "Y": -0.1,
+      "Z": -0.1
+    }
+  },
+  "MinScale": 0.7,
+  "MaxScale": 0.7,
+  "AnimationSets": {
+    "Idle": {
+      "Animations": [
+        {
+          "Animation": "Items/Animations/Spin_Roll/Spin_Roll_Left.blockyanim",
+          "BlendingDuration": 0
+        }
+      ]
+    }
+  },
+  "Particles": [
+    {
+      "Color": "#cc1cff",
+      "SystemId": "Dragonling_Purple_Void",
+      "TargetNodeName": "Fireball"
+    },
+    {
+      "Color": "#8000cc",
+      "Scale": 5,
+      "SystemId": "Dragonling_Purple_Void"
+    }
+  ],
+  "Trails": [
+    {
+      "TrailId": "SkeletonMage",
+      "TargetNodeName": "Origin_Item"
+    },
+    {
+      "RotationOffset": {
+        "Pitch": 0,
+        "Roll": 0,
+        "Yaw": 90
+      },
+      "TrailId": "SkeletonMage",
+      "TargetNodeName": "Origin_Item"
+    }
+  ],
+  "DefaultAttachments": [
+    {
+      "Model": "Items/Projectiles/Fireball.blockymodel",
+      "Texture": "Items/Projectiles/Fireball_Textures/Void.png"
+    }
+  ]
+}

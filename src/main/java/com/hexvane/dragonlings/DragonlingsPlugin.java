@@ -2,9 +2,6 @@ package com.hexvane.dragonlings;
 
 import com.hypixel.hytale.component.ComponentRegistryProxy;
 import com.hypixel.hytale.component.ComponentType;
-import com.hypixel.hytale.component.Holder;
-import com.hypixel.hytale.component.query.Query;
-import com.hypixel.hytale.component.system.HolderSystem;
 import com.hypixel.hytale.event.EventRegistry;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.entity.InteractionManager;

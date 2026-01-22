@@ -6,10 +6,9 @@
   ],
   "NPCs": [
     {
-      "Weight": 50,
+      "Weight": 15,
       "SpawnBlockSet": "Soil",
-      "Id": "Dragonling_Green",
-      "Flock": "Group_Tiny"
+      "Id": "Dragonling_Green"
     }
   ],
   "DayTimeRange": [

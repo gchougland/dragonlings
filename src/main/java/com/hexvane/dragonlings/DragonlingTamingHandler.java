@@ -107,15 +107,17 @@ public class DragonlingTamingHandler {
             }
             
             // Send success message
+            String roleName = npcComponent.getRoleName();
             playerComponent.sendMessage(Message.translation("server.dragonlings.tamed.success")
-                .param("dragonling", npcComponent.getRoleName()));
+                .param("dragonling", Message.translation("server.npcRoles." + roleName + ".name")));
             
             String playerUUIDStr = uuidComponent != null ? uuidComponent.getUuid().toString() : "unknown";
             LOGGER.atInfo().log("[Taming] SUCCESS - Dragonling %s tamed by player %s", npcComponent.getRoleName(), playerUUIDStr);
         } else {
             // Send failure message
+            String roleName = npcComponent.getRoleName();
             playerComponent.sendMessage(Message.translation("server.dragonlings.tamed.failed")
-                .param("dragonling", npcComponent.getRoleName()));
+                .param("dragonling", Message.translation("server.npcRoles." + roleName + ".name")));
             LOGGER.atInfo().log("[Taming] FAILED - Dragonling %s resisted taming attempt", npcComponent.getRoleName());
         }
         

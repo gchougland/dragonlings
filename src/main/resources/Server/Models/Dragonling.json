@@ -44,6 +44,29 @@
           "Looping": false
         }
       ]
+    },
+    "Death": {
+      "Animations": [
+        {
+          "Animation": "NPC/Pets/Dragonling/Animations/Death.blockyanim",
+          "Looping": false
+        }
+      ]
+    },
+    "Hurt": {
+      "Animations": [
+        {
+          "Animation": "NPC/Pets/Dragonling/Animations/Hurt.blockyanim",
+          "Looping": false
+        }
+      ]
+    },
+    "Swim": {
+      "Animations": [
+        {
+          "Animation": "NPC/Pets/Dragonling/Animations/Swim.blockyanim"
+        }
+      ]
     }
   }
 }

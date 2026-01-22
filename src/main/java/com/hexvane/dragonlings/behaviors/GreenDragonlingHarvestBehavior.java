@@ -211,9 +211,6 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                         }
                     }
                     
-                    LOGGER.atInfo().log("[GreenHarvest] %s detected harvestable crop at (%d, %d, %d): %s", 
-                        npcComponent.getRoleName(), bx, by, bz, blockType.getId());
-                    
                     // Play Blow animation (harvesting action)
                     npcComponent.playAnimation(npcRef, 
                         com.hypixel.hytale.protocol.AnimationSlot.Action, 
@@ -243,17 +240,12 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                             continue;
                         }
                         
-                        LOGGER.atInfo().log("[GreenHarvest] %s attempting to deposit %s x%d into chest", 
-                            npcComponent.getRoleName(), dropStack.getItemId(), dropStack.getQuantity());
-                        
                         // Try to add to chest, drop remainder if chest is full
                         com.hypixel.hytale.server.core.inventory.transaction.ItemStackTransaction transaction = 
                             chestInventory.addItemStack(dropStack);
                         com.hypixel.hytale.server.core.inventory.ItemStack remainder = transaction.getRemainder();
                         
                         if (remainder != null && !remainder.isEmpty()) {
-                            LOGGER.atInfo().log("[GreenHarvest] %s chest full, dropping remainder %s x%d", 
-                                npcComponent.getRoleName(), remainder.getItemId(), remainder.getQuantity());
                             // Drop remainder as item entity
                             com.hypixel.hytale.component.Holder<EntityStore>[] itemDrops = 
                                 com.hypixel.hytale.server.core.modules.entity.item.ItemComponent.generateItemDrops(
@@ -267,9 +259,6 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                                     commandBuffer.addEntity(itemHolder, com.hypixel.hytale.component.AddReason.SPAWN);
                                 }
                             }
-                        } else {
-                            LOGGER.atInfo().log("[GreenHarvest] %s successfully deposited %s x%d into chest", 
-                                npcComponent.getRoleName(), dropStack.getItemId(), dropStack.getQuantity());
                         }
                     }
                     
@@ -284,8 +273,6 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                             && blockTypeId != null && blockTypeId.contains("Eternal");
                         
                         if (isEternal) {
-                            LOGGER.atInfo().log("[GreenHarvest] %s detected eternal crop at (%d, %d, %d): %s (stageSetAfterHarvest: %s)", 
-                                npcComponent.getRoleName(), bx, by, bz, blockTypeId, stageSetAfterHarvest);
                             // Regrowing crop (eternal seed) - reset to starting stage instead of breaking
                             // We can use ChunkStore directly since we're in an EntityTickingSystem (ChunkStore is not being processed)
                             com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkStore = world.getChunkStore().getStore();
@@ -368,8 +355,6 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                                                     bx, by, bz, 
                                                     previousStage);
                                                 cropHarvested = true; // Successfully reset eternal crop
-                                                LOGGER.atInfo().log("[GreenHarvest] %s successfully reset eternal crop at (%d, %d, %d)", 
-                                                    npcComponent.getRoleName(), bx, by, bz);
                                             } else {
                                                 LOGGER.atWarning().log("[GreenHarvest] %s failed to reset eternal crop at (%d, %d, %d) - sectionRef or blockRef null", 
                                                     npcComponent.getRoleName(), bx, by, bz);
@@ -392,13 +377,6 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                             }
                         } else {
                             // One-time farming crop - will be broken below
-                            if (stageSetAfterHarvest != null && !stageSetAfterHarvest.isEmpty()) {
-                                LOGGER.atInfo().log("[GreenHarvest] %s detected non-eternal farming crop with stageSetAfterHarvest at (%d, %d, %d): %s (will break)", 
-                                    npcComponent.getRoleName(), bx, by, bz, blockTypeId);
-                            } else {
-                                LOGGER.atInfo().log("[GreenHarvest] %s detected one-time farming crop at (%d, %d, %d): %s (no stageSetAfterHarvest)", 
-                                    npcComponent.getRoleName(), bx, by, bz, blockTypeId);
-                            }
                         }
                     } else {
                         // Not a farming crop - will be broken below

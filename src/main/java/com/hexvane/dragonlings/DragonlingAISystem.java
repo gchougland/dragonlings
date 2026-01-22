@@ -73,15 +73,32 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
             return;
         }
         
-        // Handle AI state transitions
+        // For untamed dragonlings, don't interfere at all - let the role's default behavior work
+        if (!data.isTamed() && !data.isLeashed()) {
+            // Completely skip AI system for untamed dragonlings
+            // They should use the default WanderInCircle behavior from the role JSON
+            return;
+        }
+        
+        // Handle AI state transitions for tamed/leashed dragonlings
         DragonlingAIState aiState = data.getAIState();
         
         // Check for SEEK states (furnace, crops, etc.) - these take priority
-        if (aiState == DragonlingAIState.SEEK_FURNACE || 
-            aiState == DragonlingAIState.HARVEST_CROPS || 
-            aiState == DragonlingAIState.WATER_CROPS) {
+        // BUT: Only handle SEEK states if the dragonling is leashed (behaviors only run when leashed)
+        boolean isSeekState = (aiState == DragonlingAIState.SEEK_FURNACE || 
+                              aiState == DragonlingAIState.HARVEST_CROPS || 
+                              aiState == DragonlingAIState.WATER_CROPS);
+        
+        if (isSeekState && data.isLeashed()) {
             handleSeekState(npcRef, npcComponent, role, data, store, commandBuffer);
         } else {
+            // If in a SEEK state but not leashed, clear it so the dragonling can follow owner
+            if (isSeekState && !data.isLeashed()) {
+                clearSeekPosition(role);
+                cleanupSeekMarker(npcRef, npcComponent, role);
+                data.setAIState(DragonlingAIState.WANDER);
+                data.setTargetPosition(null);
+            }
             // Not in a SEEK state - clean up any existing marker and clear stored position
             cleanupSeekMarker(npcRef, npcComponent, role);
             clearSeekPosition(role);
@@ -109,7 +126,6 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
                             // If leash point is at NPC position (we set it there during seeking), restore it
                             if (distToLeash < 0.1) {
                                 npcComponent.setLeashPoint(leashPos);
-                                LOGGER.atInfo().log("[DragonlingAI] Restored leash point after seeking");
                             }
                         }
                     }
@@ -117,10 +133,6 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
                     handleLeashing(npcRef, npcComponent, data, store, commandBuffer);
                 }
                 // If seeking, leash is already disabled in handleSeekState, so don't call handleLeashing
-            } else {
-                // Not tamed - clear any targets and let default wander behavior work
-                data.setAIState(DragonlingAIState.WANDER);
-                role.getMarkedEntitySupport().setMarkedEntity("LockedTarget", null);
             }
         }
     }
@@ -147,8 +159,8 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
         // Find owner entity
         Ref<EntityStore> ownerRef = findPlayerByUUID(store, ownerUUID);
         if (ownerRef == null || !ownerRef.isValid()) {
-            // Owner not found, clear target
-            role.getMarkedEntitySupport().setMarkedEntity("LockedTarget", null);
+            // Owner not found, clear target position so NPC stops seeking
+            clearSeekPosition(role);
             return;
         }
         
@@ -180,11 +192,11 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
             LOGGER.atInfo().log("[DragonlingAI] Teleported %s to owner (distance: %.2f)", npcComponent.getRoleName(), distance);
         }
         
-        // Set owner as target in MarkedEntitySupport
-        // The role's SensorTarget with TargetSlot "LockedTarget" will detect this
+        // Set owner position in stored positions (same approach as seeking)
+        // The role's SensorReadPosition with slot "LastSeen" will detect this
         // and BodyMotion Seek will automatically follow it
         // The separation system (enabled in role JSON) will handle spacing between multiple followers
-        role.getMarkedEntitySupport().setMarkedEntity("LockedTarget", ownerRef);
+        setSeekPosition(role, ownerPos);
         
         // Only log if distance changed significantly or on teleport
         // (removed frequent logging to reduce spam)
@@ -279,8 +291,9 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
     }
     
     /**
-     * Clears the stored position for seeking (sets it to MIN to invalidate it).
-     * Clears ALL slots to ensure "SeekPosition" is cleared.
+     * Clears the stored position for seeking.
+     * For untamed dragonlings, we want to ensure ReadPosition doesn't match so they can wander.
+     * We only modify existing positions - we don't create new ones to avoid initializing the array.
      */
     private void clearSeekPosition(@Nonnull Role role) {
         try {
@@ -291,13 +304,18 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
             Vector3d[] storedPositions = (Vector3d[]) storedPositionsField.get(markedEntitySupport);
             
             if (storedPositions != null) {
-                // Clear ALL slots to ensure "SeekPosition" is cleared
+                // Only modify existing positions - don't create new ones
+                // Setting to MIN should make ReadPosition with Range: 512 fail to match
+                // because MIN is far outside any reasonable range
                 for (int i = 0; i < storedPositions.length; i++) {
                     Vector3d storedPos = storedPositions[i];
                     if (storedPos != null) {
-                        // Clear by setting to MIN (invalid position) - SensorReadPosition checks for this
+                        // Set to MIN - this should be outside the 512 block range
+                        // If ReadPosition still matches, the sensor might be checking existence rather than range
                         storedPos.assign(Vector3d.MIN);
                     }
+                    // Don't create new Vector3d objects - leave null if they don't exist
+                    // This way ReadPosition might fail if it checks for null
                 }
             }
         } catch (Exception e) {
@@ -613,10 +631,8 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
         // This prevents teleportation entirely - they'll just wander in a circle around the leash point
         npcComponent.setLeashPoint(leashPos);
         
-        // Only log when position actually changes
+        // Track last leash position to avoid unnecessary updates
         if (positionChanged) {
-            LOGGER.atInfo().log("[DragonlingAI] Set leash point for %s at position %s (distance: %.2f, radius: %.2f)", 
-                npcComponent.getRoleName(), leashPos, distance, leashRadius);
             lastLeashPositions.put(npcRef, leashPos.clone());
         }
     }

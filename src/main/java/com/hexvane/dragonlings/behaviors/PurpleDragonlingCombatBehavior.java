@@ -8,10 +8,8 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.DragonlingData;
@@ -69,35 +67,76 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
         
         UUID ownerUUID = data.getOwnerUUID();
         if (ownerUUID == null) {
-            LOGGER.atInfo().log("[PurpleCombat] %s has no owner UUID", npcComponent.getRoleName());
             return;
         }
         
-        // Find owner
-        Ref<EntityStore> ownerRef = findPlayerByUUID(store, ownerUUID);
+        // Get world's entity store - this is more reliable than using the ticking system's store
+        com.hypixel.hytale.server.core.universe.world.World world = npcComponent.getWorld();
+        if (world == null) {
+            return;
+        }
+        
+        Store<EntityStore> entityStore = world.getEntityStore().getStore();
+        Ref<EntityStore> ownerRef = findPlayerByUUID(entityStore, ownerUUID);
         if (ownerRef == null || !ownerRef.isValid()) {
-            LOGGER.atInfo().log("[PurpleCombat] %s owner not found or invalid", npcComponent.getRoleName());
             return;
         }
         
-        LOGGER.atInfo().log("[PurpleCombat] %s checking for combat targets near owner", npcComponent.getRoleName());
-        
-        Player ownerPlayer = store.getComponent(ownerRef, Player.getComponentType());
+        Player ownerPlayer = entityStore.getComponent(ownerRef, Player.getComponentType());
         if (ownerPlayer == null) {
             return;
         }
         
-        // Check if owner is in combat with a hostile entity
-        // When owner attacks a hostile entity, dragonling should assist
-        // This would require listening to damage/attack events
-        // For now, this is a placeholder that would need:
-        // 1. Event listener for player attack events
-        // 2. Check if target is hostile
-        // 3. Trigger Blow animation
-        // 4. Spawn projectile entity
-        // 5. Projectile deals damage on impact
-        
         Ref<EntityStore> npcRef = archetypeChunk.getReferenceTo(index);
+        
+        // Check if we have a combat target from the listener
+        Ref<EntityStore> combatTargetRef = com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener.getCombatTarget(npcRef);
+        
+        // If no target, nothing to do (listener will set one when player attacks)
+        if (combatTargetRef == null || !combatTargetRef.isValid()) {
+            return;
+        }
+        
+        // Check if target is dead (has DeathComponent in its archetype)
+        if (entityStore.getArchetype(combatTargetRef).contains(
+                com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent.getComponentType())) {
+            // Target is dead, clear it
+            com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener.clearCombatTarget(npcRef);
+            return;
+        }
+        
+        // Verify target still has EntityStatMap (can take damage)
+        com.hypixel.hytale.server.core.modules.entitystats.EntityStatMap targetStats = 
+            entityStore.getComponent(combatTargetRef, com.hypixel.hytale.server.core.modules.entitystats.EntityStatMap.getComponentType());
+        
+        if (targetStats == null) {
+            // Target no longer exists or can't take damage, clear it
+            com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener.clearCombatTarget(npcRef);
+            return;
+        }
+        
+        // Check range
+        com.hypixel.hytale.server.core.modules.entity.component.TransformComponent dragonlingTransform = 
+            store.getComponent(npcRef, com.hypixel.hytale.server.core.modules.entity.component.TransformComponent.getComponentType());
+        com.hypixel.hytale.server.core.modules.entity.component.TransformComponent targetTransform = 
+            entityStore.getComponent(combatTargetRef, com.hypixel.hytale.server.core.modules.entity.component.TransformComponent.getComponentType());
+        
+        if (dragonlingTransform == null || targetTransform == null) {
+            com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener.clearCombatTarget(npcRef);
+            return;
+        }
+        
+        com.hypixel.hytale.math.vector.Vector3d dragonlingPos = dragonlingTransform.getPosition();
+        com.hypixel.hytale.math.vector.Vector3d targetPos = targetTransform.getPosition();
+        double distance = dragonlingPos.distanceTo(targetPos);
+        
+        if (distance > ATTACK_RANGE) {
+            // Target out of range, clear it
+            com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener.clearCombatTarget(npcRef);
+            return;
+        }
+        
+        // Check cooldown
         double currentTime = System.currentTimeMillis() / 1000.0;
         Double lastAttack = lastAttackTime.get(npcRef);
         
@@ -105,28 +144,114 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
             return; // Still on cooldown
         }
         
-        // Implementation would go here - checking for combat targets and firing projectiles
+        // Attack the target!
+        // Make dragonling face the target
+        com.hypixel.hytale.math.vector.Vector3d direction = new com.hypixel.hytale.math.vector.Vector3d(targetPos).subtract(dragonlingPos).normalize();
+        com.hypixel.hytale.math.vector.Vector3d horizontalDir = direction.clone();
+        horizontalDir.y = 0;
+        double dirLength = horizontalDir.distanceTo(com.hypixel.hytale.math.vector.Vector3d.ZERO);
+        if (dirLength > 0.01) {
+            horizontalDir.normalize();
+        }
+        
+        double yaw = Math.atan2(horizontalDir.x, horizontalDir.z) + Math.PI;
+        double pitch = -Math.asin(direction.y);
+        
+        // Set body rotation
+        com.hypixel.hytale.server.core.modules.entity.component.TransformComponent transformMutable = 
+            commandBuffer.getComponent(npcRef, com.hypixel.hytale.server.core.modules.entity.component.TransformComponent.getComponentType());
+        if (transformMutable != null) {
+            com.hypixel.hytale.math.vector.Vector3f rotation = transformMutable.getRotation();
+            rotation.setYaw((float) yaw);
+        }
+        
+        // Set head rotation
+        com.hypixel.hytale.server.core.modules.entity.component.HeadRotation headRot = 
+            commandBuffer.ensureAndGetComponent(npcRef, com.hypixel.hytale.server.core.modules.entity.component.HeadRotation.getComponentType());
+        if (headRot != null) {
+            com.hypixel.hytale.math.vector.Vector3f headRotation = headRot.getRotation();
+            headRotation.setYaw((float) yaw);
+            headRotation.setPitch((float) pitch);
+        }
+        
+        // Play Blow animation
+        npcComponent.playAnimation(npcRef, 
+            com.hypixel.hytale.protocol.AnimationSlot.Action, 
+            "Blow", 
+            commandBuffer);
+        
+        // Calculate mouth position
+        com.hypixel.hytale.math.vector.Vector3d mouthPos;
+        double headYOffset = 0.45;
+        double mouthForwardOffset = 0.5;
+        double forwardX = -Math.sin(yaw) * mouthForwardOffset;
+        double forwardZ = -Math.cos(yaw) * mouthForwardOffset;
+        
+        mouthPos = dragonlingPos.clone();
+        mouthPos.y += headYOffset;
+        mouthPos.x += forwardX;
+        mouthPos.z += forwardZ;
+        
+        // Spawn projectile
+        try {
+            com.hypixel.hytale.server.core.modules.projectile.config.ProjectileConfig projectileConfig = 
+                com.hypixel.hytale.server.core.modules.projectile.config.ProjectileConfig.getAssetMap().getAsset("Dragonling_Void_Projectile");
+            
+            if (projectileConfig != null) {
+                // spawnProjectile takes position and ADDS SpawnOffset to it (rotated by pitch/yaw)
+                // SpawnOffset is now 0,0,0, so we pass the exact mouth position
+                com.hypixel.hytale.server.core.modules.projectile.ProjectileModule.get().spawnProjectile(
+                    npcRef,
+                    commandBuffer,
+                    projectileConfig,
+                    mouthPos,  // Exact mouth position - SpawnOffset is 0,0,0 so it spawns here
+                    direction  // Direction to fly
+                );
+            }
+        } catch (Exception e) {
+            LOGGER.atWarning().withCause(e).log("[PurpleCombat] Failed to spawn projectile for %s", npcComponent.getRoleName());
+        }
+        
+        // Update cooldown
+        lastAttackTime.put(npcRef, currentTime);
     }
     
     /**
      * Finds a player entity by UUID.
+     * Note: In EntityTickingSystem, forEachChunk may not work properly.
+     * This implementation tries forEachChunk first, but may need alternative approach.
      */
     @javax.annotation.Nullable
     private Ref<EntityStore> findPlayerByUUID(@Nonnull Store<EntityStore> store, @Nonnull UUID uuid) {
         ComponentType<EntityStore, Player> playerType = Player.getComponentType();
+        ComponentType<EntityStore, UUIDComponent> uuidType = UUIDComponent.getComponentType();
+        
+        @SuppressWarnings("unchecked")
         Ref<EntityStore>[] result = new Ref[1];
-        store.forEachChunk(playerType, (chunk, commandBuffer) -> {
-            for (int i = 0; i < chunk.size(); i++) {
-                Player player = chunk.getComponent(i, playerType);
-                if (player != null) {
-                    UUIDComponent uuidComponent = store.getComponent(chunk.getReferenceTo(i), UUIDComponent.getComponentType());
-                    if (uuidComponent != null && uuidComponent.getUuid().equals(uuid)) {
-                        result[0] = chunk.getReferenceTo(i);
-                        return;
+        
+        try {
+            // Try using forEachChunk - this should work but may have issues in ticking systems
+            store.forEachChunk(playerType, (chunk, chunkCommandBuffer) -> {
+                if (result[0] != null) {
+                    return; // Already found, skip remaining chunks
+                }
+                
+                for (int i = 0; i < chunk.size(); i++) {
+                    Player player = chunk.getComponent(i, playerType);
+                    if (player != null) {
+                        Ref<EntityStore> playerRef = chunk.getReferenceTo(i);
+                        UUIDComponent uuidComponent = store.getComponent(playerRef, uuidType);
+                        if (uuidComponent != null && uuidComponent.getUuid().equals(uuid)) {
+                            result[0] = playerRef;
+                            return; // Found the player, exit early
+                        }
                     }
                 }
-            }
-        });
+            });
+        } catch (Exception e) {
+            LOGGER.atWarning().withCause(e).log("[PurpleCombat] Error in forEachChunk while finding player by UUID");
+        }
+        
         return result[0];
     }
     

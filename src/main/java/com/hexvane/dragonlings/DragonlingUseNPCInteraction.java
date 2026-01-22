@@ -46,32 +46,24 @@ public class DragonlingUseNPCInteraction extends SimpleInstantInteraction {
     
     @Override
     protected void firstRun(@Nonnull InteractionType type, @Nonnull InteractionContext context, @Nonnull CooldownHandler cooldownHandler) {
-        LOGGER.atInfo().log("[DragonlingUseNPC] firstRun called - type: %s", type);
-        
         Ref<EntityStore> ref = context.getEntity();
         CommandBuffer<EntityStore> commandBuffer = context.getCommandBuffer();
         Player playerComponent = commandBuffer.getComponent(ref, Player.getComponentType());
         
         if (playerComponent == null) {
-            LOGGER.atInfo().log("[DragonlingUseNPC] No player component found for entity: %s", ref);
             context.getState().state = InteractionState.Failed;
             return;
         }
         
         // Get target entity - try from meta store first, then from client state (like UseEntityInteraction does)
         Ref<EntityStore> targetRef = context.getTargetEntity();
-        LOGGER.atInfo().log("[DragonlingUseNPC] Target entity from meta store: %s", targetRef);
         
         if (targetRef == null) {
             // Try getting from client state like UseEntityInteraction does
             com.hypixel.hytale.protocol.InteractionSyncData chainData = context.getClientState();
-            LOGGER.atInfo().log("[DragonlingUseNPC] Client state: %s, entityId: %s", 
-                chainData != null ? "present" : "null", 
-                chainData != null ? chainData.entityId : "N/A");
             
             if (chainData != null && chainData.entityId >= 0) {
                 targetRef = commandBuffer.getStore().getExternalData().getRefFromNetworkId(chainData.entityId);
-                LOGGER.atInfo().log("[DragonlingUseNPC] Target entity from client state: %s", targetRef);
             }
         }
         
@@ -100,29 +92,19 @@ public class DragonlingUseNPCInteraction extends SimpleInstantInteraction {
                                     blockType = blockTypeObj.getId();
                                 }
                             }
-                            LOGGER.atInfo().log("[DragonlingUseNPC] Got block type: %s at %s", blockType, blockPos);
-                        } else {
-                            LOGGER.atWarning().log("[DragonlingUseNPC] World is null");
                         }
                     } catch (Exception e) {
-                        LOGGER.atWarning().withCause(e).log("[DragonlingUseNPC] Failed to get block type");
+                        // Ignore block type retrieval errors
                     }
-                    
-                    LOGGER.atInfo().log("[DragonlingUseNPC] Player in leash mode, handling block interaction at %s (block: %s)", blockPos, blockType);
                     
                     boolean handled = DragonlingLeashHandler.handleBlockInteraction(
                         uuidComponent.getUuid(), blockPos, blockType, commandBuffer
                     );
                     
                     if (handled) {
-                        LOGGER.atInfo().log("[DragonlingUseNPC] Leash position set via block interaction");
                         context.getState().state = InteractionState.Finished;
                         return;
-                    } else {
-                        LOGGER.atWarning().log("[DragonlingUseNPC] Failed to handle block interaction in leash mode");
                     }
-                } else {
-                    LOGGER.atInfo().log("[DragonlingUseNPC] Player in leash mode but no block target found");
                 }
                 
                 // Mark as finished so it doesn't show an error
@@ -130,22 +112,18 @@ public class DragonlingUseNPCInteraction extends SimpleInstantInteraction {
                 return;
             }
             
-            LOGGER.atInfo().log("[DragonlingUseNPC] No valid target entity found");
             context.getState().state = InteractionState.Failed;
             return;
         }
         
         NPCEntity npcComponent = commandBuffer.getComponent(targetRef, NPCEntity.getComponentType());
         if (npcComponent == null) {
-            LOGGER.atInfo().log("[DragonlingUseNPC] Target entity is not an NPC");
             context.getState().state = InteractionState.Failed;
             return;
         }
         
         String roleName = npcComponent.getRoleName();
         boolean isDragonling = roleName != null && roleName.contains("Dragonling");
-        
-        LOGGER.atInfo().log("[DragonlingUseNPC] Player %s interacting with %s (isDragonling: %s)", ref, roleName, isDragonling);
         
         if (isDragonling) {
             // Try taming first (checks for essence items)
@@ -154,7 +132,6 @@ public class DragonlingUseNPCInteraction extends SimpleInstantInteraction {
             );
             
             if (tamed) {
-                LOGGER.atInfo().log("[DragonlingUseNPC] Taming interaction handled for %s", roleName);
                 // Interaction handled, don't proceed to default NPC interaction
                 return;
             }
@@ -165,12 +142,9 @@ public class DragonlingUseNPCInteraction extends SimpleInstantInteraction {
             );
             
             if (leashed) {
-                LOGGER.atInfo().log("[DragonlingUseNPC] Leash interaction handled for %s", roleName);
                 // Interaction handled, don't proceed to default NPC interaction
                 return;
             }
-            
-            LOGGER.atInfo().log("[DragonlingUseNPC] No custom interaction matched for %s, proceeding with default NPC interaction", roleName);
         }
         
         // Proceed with default NPC interaction behavior

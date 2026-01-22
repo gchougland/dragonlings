@@ -95,19 +95,18 @@ public class DragonlingLeashHandler {
             // Restore follow target so it follows the player again
             npcComponent.getRole().getMarkedEntitySupport().setMarkedEntity("LockedTarget", playerRef);
             
+            String roleName = npcComponent.getRoleName();
             playerComponent.sendMessage(Message.translation("server.dragonlings.leash.unleashed")
-                .param("dragonling", npcComponent.getRoleName()));
+                .param("dragonling", Message.translation("server.npcRoles." + roleName + ".name")));
             
-            LOGGER.atInfo().log("[Leash] Player %s unleashed %s", playerUUID, npcComponent.getRoleName());
             return true;
         }
         
         // Enter leash mode
         leashModePlayers.put(playerUUID, npcRef);
+        String roleName = npcComponent.getRoleName();
         playerComponent.sendMessage(Message.translation("server.dragonlings.leash.modeEnter")
-            .param("dragonling", npcComponent.getRoleName()));
-        
-        LOGGER.atInfo().log("[Leash] Player %s entered leash mode for %s", playerUUID, npcComponent.getRoleName());
+            .param("dragonling", Message.translation("server.npcRoles." + roleName + ".name")));
         
         return true;
     }
@@ -158,22 +157,16 @@ public class DragonlingLeashHandler {
         // Clear follow target when leashed
         npcComponent.getRole().getMarkedEntitySupport().setMarkedEntity("LockedTarget", null);
         
-        LOGGER.atInfo().log("[Leash] Setting leash for %s at position %s (block: %s) by player %s", 
-            npcComponent.getRoleName(), blockPosition, blockType, playerUUID);
-        
         // Send confirmation message
         Ref<EntityStore> playerRef = findPlayerByUUID(commandBuffer.getStore(), playerUUID);
         if (playerRef != null && playerRef.isValid()) {
             Player playerComponent = commandBuffer.getComponent(playerRef, Player.getComponentType());
             if (playerComponent != null) {
+                String roleName = npcComponent.getRoleName();
                 playerComponent.sendMessage(Message.translation("server.dragonlings.leash.set")
-                    .param("dragonling", npcComponent.getRoleName()));
-                LOGGER.atInfo().log("[Leash] Sent confirmation message to player %s", playerUUID);
+                    .param("dragonling", Message.translation("server.npcRoles." + roleName + ".name")));
             }
         }
-        
-        LOGGER.atInfo().log("[Leash] SUCCESS - Dragonling %s leashed to position %s by player %s", 
-            npcComponent.getRoleName(), blockPosition, playerUUID);
         
         return true;
     }
