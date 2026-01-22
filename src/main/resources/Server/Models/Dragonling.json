@@ -60,13 +60,6 @@
           "Looping": false
         }
       ]
-    },
-    "Swim": {
-      "Animations": [
-        {
-          "Animation": "NPC/Pets/Dragonling/Animations/Swim.blockyanim"
-        }
-      ]
     }
   }
 }

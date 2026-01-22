@@ -5,11 +5,21 @@
     "Appearance": "Dragonling_Red",
     "MaxHealth": 50,
     "WanderRadius": 7,
+    "SlowDownDistance": { "Compute": "SlowDownDistance" },
+    "StopDistance": { "Compute": "StopDistance" },
     "NameTranslationKey": {
       "Compute": "NameTranslationKey"
     }
   },
   "Parameters": {
+    "SlowDownDistance": {
+      "Value": 3.0,
+      "Description": "Distance at which NPC starts slowing down when seeking"
+    },
+    "StopDistance": {
+      "Value": 2.0,
+      "Description": "Distance at which NPC stops when seeking"
+    },
     "NameTranslationKey": {
       "Value": "server.npcRoles.Dragonling_Red.name",
       "Description": "Translation key for NPC name display"

@@ -27,8 +27,8 @@
           },
           "BodyMotion": {
             "Type": "Seek",
-            "SlowDownDistance": 3.0,
-            "StopDistance": 2.0,
+            "SlowDownDistance": { "Compute": "SlowDownDistance" },
+            "StopDistance": { "Compute": "StopDistance" },
             "RelativeSpeed": 0.8
           },
           "Actions": [
@@ -77,6 +77,14 @@
     "WanderRadius": {
       "Value": 8,
       "Description": "Wander Radius"
+    },
+    "SlowDownDistance": {
+      "Value": 3.0,
+      "Description": "Distance at which NPC starts slowing down when seeking"
+    },
+    "StopDistance": {
+      "Value": 2.0,
+      "Description": "Distance at which NPC stops when seeking"
     },
     "NameTranslationKey": {
       "Value": "server.npcRoles.Dragonling.name",

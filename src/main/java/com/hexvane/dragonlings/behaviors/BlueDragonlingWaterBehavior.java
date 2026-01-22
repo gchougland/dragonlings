@@ -25,7 +25,7 @@ import javax.annotation.Nonnull;
  */
 public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore> {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
-    private static final double WATER_RADIUS = 8.0;
+    private static final double WATER_RADIUS = 11.0;
     private static final double WATER_COOLDOWN = 3.0; // Seconds between watering attempts (animation is 60 ticks = 3 seconds, add buffer)
     // Note: Base role has StopDistance of 2.0, so NPC will stop within 2.0 blocks of target
     private static final double APPROACH_DISTANCE = 3.0; // Distance to trigger watering (allows blowing from further away)
@@ -425,8 +425,13 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                 com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> blockRef = 
                     bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY, bestFarmlandZ);
                 if (blockRef == null) {
-                    blockRef = com.hypixel.hytale.server.core.modules.block.BlockModule.ensureBlockEntity(
-                        bestChunk, bestFarmlandX, bestFarmlandY, bestFarmlandZ);
+                    try {
+                        blockRef = com.hypixel.hytale.server.core.modules.block.BlockModule.ensureBlockEntity(
+                            bestChunk, bestFarmlandX, bestFarmlandY, bestFarmlandZ);
+                    } catch (IllegalArgumentException e) {
+                        // Block entity was created by another thread, get it again
+                        blockRef = bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY, bestFarmlandZ);
+                    }
                 }
                 
                 if (blockRef != null) {
@@ -540,8 +545,13 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                     // Try to get block entity again after ensuring it
                     blockRef = bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY, bestFarmlandZ);
                     if (blockRef == null) {
-                        blockRef = com.hypixel.hytale.server.core.modules.block.BlockModule.ensureBlockEntity(
-                            bestChunk, bestFarmlandX, bestFarmlandY, bestFarmlandZ);
+                        try {
+                            blockRef = com.hypixel.hytale.server.core.modules.block.BlockModule.ensureBlockEntity(
+                                bestChunk, bestFarmlandX, bestFarmlandY, bestFarmlandZ);
+                        } catch (IllegalArgumentException e) {
+                            // Block entity was created by another thread, get it again
+                            blockRef = bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY, bestFarmlandZ);
+                        }
                     }
                     if (blockRef != null) {
                         com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock farmingState = 
@@ -551,8 +561,13 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                             com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> soilRef = 
                                 bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY - 1, bestFarmlandZ);
                             if (soilRef == null) {
-                                soilRef = com.hypixel.hytale.server.core.modules.block.BlockModule.ensureBlockEntity(
-                                    bestChunk, bestFarmlandX, bestFarmlandY - 1, bestFarmlandZ);
+                                try {
+                                    soilRef = com.hypixel.hytale.server.core.modules.block.BlockModule.ensureBlockEntity(
+                                        bestChunk, bestFarmlandX, bestFarmlandY - 1, bestFarmlandZ);
+                                } catch (IllegalArgumentException e) {
+                                    // Block entity was created by another thread, get it again
+                                    soilRef = bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY - 1, bestFarmlandZ);
+                                }
                             }
                             if (soilRef != null) {
                                 com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock soil = 

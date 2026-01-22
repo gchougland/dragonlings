@@ -1,0 +1,10 @@
+{
+  "Spawners": [
+    {
+      "SpawnerId": "Dragonling_Green_Harvest"
+    }
+  ],
+  "LifeSpan": 1.0,
+  "CullDistance": 50.0,
+  "BoundingRadius": 2.0
+}

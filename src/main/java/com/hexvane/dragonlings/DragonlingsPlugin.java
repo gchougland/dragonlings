@@ -45,7 +45,6 @@ public class DragonlingsPlugin extends JavaPlugin {
         // Register event listeners (doesn't depend on NPC module)
         EventRegistry eventRegistry = this.getEventRegistry();
         DragonlingInteractionListener.register(eventRegistry);
-        DragonlingCaptureCrateMerger.register(eventRegistry);
     }
     
     @Override
