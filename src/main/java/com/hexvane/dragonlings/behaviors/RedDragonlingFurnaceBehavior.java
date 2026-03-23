@@ -6,11 +6,13 @@ import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.builtin.crafting.component.ProcessingBenchBlock;
 import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
+import com.hypixel.hytale.server.core.modules.block.BlockModule;
 import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
@@ -18,7 +20,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.DragonlingData;
-import it.unimi.dsi.fastutil.objects.ObjectList;
+import java.util.List;
 import javax.annotation.Nonnull;
 
 /**
@@ -161,15 +163,11 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
                         continue;
                     }
                     
-                    // Check if it's a ProcessingBench (furnace) and get its state
-                    @SuppressWarnings("removal") // BlockState is deprecated but needed for ProcessingBenchState access
-                    com.hypixel.hytale.server.core.universe.world.meta.BlockState blockState = blockChunk.getState(bx, by, bz);
-                    if (!(blockState instanceof com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState)) {
-                        continue; // Not a processing bench/furnace
+                    ProcessingBenchBlock furnaceState =
+                        BlockModule.getComponent(ProcessingBenchBlock.getComponentType(), world, bx, by, bz);
+                    if (furnaceState == null) {
+                        continue;
                     }
-                    
-                    com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState furnaceState = 
-                        (com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState) blockState;
                     
                     // Check if furnace is active and processing
                     boolean isActive = furnaceState.isActive();
@@ -324,7 +322,7 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
             // Collect nearby players so they can see the particles
             SpatialResource<Ref<EntityStore>, EntityStore> playerSpatialResource = 
                 commandBuffer.getResource(EntityModule.get().getPlayerSpatialResourceType());
-            ObjectList<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
+            List<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
             playerSpatialResource.getSpatialStructure().collect(mouthPos, 75.0, playerRefs);
             
             // The particle spawner has a narrow velocity cone (-10 to 10 degrees Yaw/Pitch)
@@ -347,25 +345,10 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
                 );
             }
             
-            // Speed up furnace by adding progress directly using reflection
-            @SuppressWarnings("removal") // BlockState is deprecated but needed for ProcessingBenchState access
-            com.hypixel.hytale.server.core.universe.world.meta.BlockState blockState = bestChunk.getState(bestFurnaceX, bestFurnaceY, bestFurnaceZ);
-            if (blockState instanceof com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState) {
-                com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState furnaceState = 
-                    (com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState) blockState;
-                
-                // Add progress to speed up processing (2x speed = add 1 second of progress per boost)
-                try {
-                    java.lang.reflect.Field inputProgressField = 
-                        com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState.class.getDeclaredField("inputProgress");
-                    inputProgressField.setAccessible(true);
-                    float currentProgress = inputProgressField.getFloat(furnaceState);
-                    // Add SPEED_BOOST seconds of progress (2x speed)
-                    inputProgressField.setFloat(furnaceState, currentProgress + (float)SPEED_BOOST);
-                    
-                } catch (Exception e) {
-                    LOGGER.atWarning().withCause(e).log("[RedFurnace] Failed to boost furnace progress");
-                }
+            ProcessingBenchBlock furnaceBench =
+                BlockModule.getComponent(ProcessingBenchBlock.getComponentType(), world, bestFurnaceX, bestFurnaceY, bestFurnaceZ);
+            if (furnaceBench != null) {
+                furnaceBench.setInputProgress(furnaceBench.getInputProgress() + (float) SPEED_BOOST);
             }
             
             boostCooldowns.put(npcRef, currentTime);

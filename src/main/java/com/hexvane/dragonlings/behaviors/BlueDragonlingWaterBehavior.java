@@ -17,7 +17,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.DragonlingData;
-import it.unimi.dsi.fastutil.objects.ObjectList;
+import java.util.List;
 import javax.annotation.Nonnull;
 
 /**
@@ -504,7 +504,7 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                     // Collect nearby players so they can see the particles
                     SpatialResource<Ref<EntityStore>, EntityStore> playerSpatialResource = 
                         commandBuffer.getResource(EntityModule.get().getPlayerSpatialResourceType());
-                    ObjectList<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
+                    List<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
                     playerSpatialResource.getSpatialStructure().collect(mouthPos, 75.0, playerRefs);
                     
                     // The particle spawner has a narrow velocity cone (-10 to 10 degrees Yaw/Pitch)
@@ -618,7 +618,7 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                                 
                                 SpatialResource<Ref<EntityStore>, EntityStore> playerSpatialResource = 
                                     commandBuffer.getResource(EntityModule.get().getPlayerSpatialResourceType());
-                                ObjectList<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
+                                List<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
                                 playerSpatialResource.getSpatialStructure().collect(mouthPos, 75.0, playerRefs);
                                 
                                 if (particleRotation != null) {
@@ -693,7 +693,7 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                 // Collect nearby players so they can see the particles
                 SpatialResource<Ref<EntityStore>, EntityStore> playerSpatialResource = 
                     commandBuffer.getResource(EntityModule.get().getPlayerSpatialResourceType());
-                ObjectList<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
+                List<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
                 playerSpatialResource.getSpatialStructure().collect(mouthPos, 75.0, playerRefs);
                 
                 // The particle spawner has a narrow velocity cone (-10 to 10 degrees Yaw/Pitch)

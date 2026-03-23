@@ -20,6 +20,7 @@ import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -190,7 +191,7 @@ public class DragonlingLeashHandler {
      */
     @Nullable
     private static Ref<EntityStore> findPlayerByUUID(@Nonnull Store<EntityStore> store, @Nonnull UUID uuid) {
-        Ref<EntityStore>[] result = new Ref[1];
+        AtomicReference<Ref<EntityStore>> result = new AtomicReference<>();
         ComponentType<EntityStore, Player> playerType = Player.getComponentType();
         store.forEachChunk(playerType, (chunk, commandBuffer) -> {
             for (int i = 0; i < chunk.size(); i++) {
@@ -198,12 +199,12 @@ public class DragonlingLeashHandler {
                 if (player != null) {
                     UUIDComponent uuidComponent = store.getComponent(chunk.getReferenceTo(i), UUIDComponent.getComponentType());
                     if (uuidComponent != null && uuidComponent.getUuid().equals(uuid)) {
-                        result[0] = chunk.getReferenceTo(i);
+                        result.set(chunk.getReferenceTo(i));
                         return;
                     }
                 }
             }
         });
-        return result[0];
+        return result.get();
     }
 }

@@ -1,5 +1,6 @@
 package com.hexvane.dragonlings.behaviors;
 
+import com.hypixel.hytale.builtin.adventure.farming.FarmingUtil;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
@@ -9,20 +10,37 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.math.util.ChunkUtil;
+import com.hypixel.hytale.math.vector.Vector3f;
+import com.hypixel.hytale.math.vector.Vector3i;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingData;
+import com.hypixel.hytale.server.core.inventory.InventoryComponent;
+import com.hypixel.hytale.server.core.inventory.ItemStack;
+import com.hypixel.hytale.server.core.inventory.container.CombinedItemContainer;
+import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
+import com.hypixel.hytale.server.core.inventory.transaction.ItemStackTransaction;
+import com.hypixel.hytale.server.core.modules.block.components.ItemContainerBlock;
+import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.chunk.BlockChunk;
+import com.hypixel.hytale.server.core.universe.world.chunk.BlockComponentChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
-import com.hypixel.hytale.server.core.universe.world.meta.BlockState; // Still needed for ItemContainerState access
+import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
+import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.core.util.FillerBlockUtil;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.component.spatial.SpatialResource;
-import com.hypixel.hytale.math.vector.Vector3f;
-import com.hypixel.hytale.server.core.modules.entity.EntityModule;
-import it.unimi.dsi.fastutil.objects.ObjectList;
 import com.hexvane.dragonlings.DragonlingData;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Behavior system for Green dragonlings - harvests crops and deposits them in chest.
@@ -115,23 +133,16 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
         int centerY = (int) Math.floor(leashPos.y); // Y is vertical
         int centerZ = (int) Math.floor(leashPos.z); // Z is north/south
         
-        // Get chest block state
-        // Note: Using deprecated BlockState.getState() because we need ItemContainerState to access chest inventory
-        // This is the only way to get ItemContainerState from a block position
-        WorldChunk chunk = world.getChunkIfInMemory(com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(centerX, centerZ));
+        WorldChunk chunk = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(centerX, centerZ));
         if (chunk == null) {
             return;
         }
         
-        @SuppressWarnings("removal") // BlockState is deprecated but needed for ItemContainerState access
-        BlockState chestState = chunk.getState(centerX, centerY, centerZ);
-        if (chestState == null || !(chestState instanceof com.hypixel.hytale.server.core.universe.world.meta.state.ItemContainerState)) {
+        ItemContainerBlock chestBlock = findItemContainerBlockAt(world, centerX, centerY, centerZ);
+        if (chestBlock == null) {
             return;
         }
-        
-        com.hypixel.hytale.server.core.universe.world.meta.state.ItemContainerState chestContainerState = 
-            (com.hypixel.hytale.server.core.universe.world.meta.state.ItemContainerState) chestState;
-        com.hypixel.hytale.server.core.inventory.container.ItemContainer chestInventory = chestContainerState.getItemContainer();
+        ItemContainer chestInventory = chestBlock.getItemContainer();
         
         // Variables to track the best crop to harvest
         int bestCropX = 0, bestCropY = 0, bestCropZ = 0;
@@ -442,7 +453,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             // Collect nearby players so they can see the particles
             SpatialResource<Ref<EntityStore>, EntityStore> playerSpatialResource = 
                 commandBuffer.getResource(EntityModule.get().getPlayerSpatialResourceType());
-            ObjectList<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
+            List<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
             playerSpatialResource.getSpatialStructure().collect(mouthPos, 75.0, playerRefs);
             
             // The particle spawner has a narrow velocity cone (-10 to 10 degrees Yaw/Pitch)
@@ -465,200 +476,72 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                 );
             }
             
-            // Get drops using the proper drop system (handles drop lists, quantities, etc.)
-            com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering gathering = blockType.getGathering();
-            com.hypixel.hytale.server.core.asset.type.blocktype.config.HarvestingDropType harvestDrop = gathering.getHarvest();
-            if (harvestDrop == null) {
-                // No harvest drop configured, just break the block
+            // Same path as HarvestCropInteraction: vanilla handles multiblock regrow, filler, and break logic.
+            Vector3i targetBlock = new Vector3i(bx, by, bz);
+            ChunkStore chunkStoreApi = world.getChunkStore();
+            Ref<ChunkStore> columnRef = chunkStoreApi.getChunkReference(ChunkUtil.indexChunkFromBlock(bx, bz));
+            if (columnRef == null || !columnRef.isValid()) {
+                harvestCooldowns.put(npcRef, currentTime);
+                return;
+            }
+            Store<ChunkStore> columnStore = chunkStoreApi.getStore();
+            BlockChunk harvestBlockChunk = columnStore.getComponent(columnRef, BlockChunk.getComponentType());
+            if (harvestBlockChunk == null) {
+                harvestCooldowns.put(npcRef, currentTime);
+                return;
+            }
+            BlockSection harvestSection = harvestBlockChunk.getSectionAtBlockY(by);
+            if (harvestSection == null) {
+                harvestCooldowns.put(npcRef, currentTime);
+                return;
+            }
+            WorldChunk harvestWorldChunk = columnStore.getComponent(columnRef, WorldChunk.getComponentType());
+            if (harvestWorldChunk == null) {
+                harvestCooldowns.put(npcRef, currentTime);
+                return;
+            }
+            BlockType harvestBlockType = harvestWorldChunk.getBlockType(targetBlock);
+            if (harvestBlockType == null) {
+                harvestCooldowns.put(npcRef, currentTime);
+                return;
+            }
+            BlockGathering harvestGathering = harvestBlockType.getGathering();
+            if (harvestGathering == null || harvestGathering.getHarvest() == null) {
                 blockChunk.breakBlock(bx, by, bz, 0);
                 harvestCooldowns.put(npcRef, currentTime);
-                return; // Harvest one crop per cooldown period
+                return;
             }
-            
-            String itemId = harvestDrop.getItemId();
-            String dropListId = harvestDrop.getDropListId();
-            
-            // Use BlockHarvestUtils.getDrops to get actual drops (handles drop lists, quantities, etc.)
-            java.util.List<com.hypixel.hytale.server.core.inventory.ItemStack> drops = 
-                com.hypixel.hytale.server.core.modules.interaction.BlockHarvestUtils.getDrops(
-                    blockType, 1, itemId, dropListId);
-            
-            // Deposit all drops into chest BEFORE harvesting (so we have them)
-            for (com.hypixel.hytale.server.core.inventory.ItemStack dropStack : drops) {
-                if (dropStack == null || dropStack.isEmpty()) {
-                    continue;
-                }
-                
-                // Try to add to chest, drop remainder if chest is full
-                com.hypixel.hytale.server.core.inventory.transaction.ItemStackTransaction transaction = 
-                    chestInventory.addItemStack(dropStack);
-                com.hypixel.hytale.server.core.inventory.ItemStack remainder = transaction.getRemainder();
-                
-                if (remainder != null && !remainder.isEmpty()) {
-                    // Drop remainder as item entity
-                    com.hypixel.hytale.component.Holder<EntityStore>[] itemDrops = 
-                        com.hypixel.hytale.server.core.modules.entity.item.ItemComponent.generateItemDrops(
-                            commandBuffer, 
-                            java.util.Collections.singletonList(remainder),
-                            new com.hypixel.hytale.math.vector.Vector3d(bx + 0.5, by + 0.5, bz + 0.5),
-                            com.hypixel.hytale.math.vector.Vector3f.ZERO
-                        );
-                    for (com.hypixel.hytale.component.Holder<EntityStore> itemHolder : itemDrops) {
-                        if (itemHolder != null) {
-                            commandBuffer.addEntity(itemHolder, com.hypixel.hytale.component.AddReason.SPAWN);
-                        }
-                    }
-                }
-            }
-            
-            // Handle crop harvesting - reset stage for regrowing crops or break block for one-time crops
-            boolean cropHarvested = false;
-            com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingData farmingData = blockType.getFarming();
-            if (farmingData != null && farmingData.getStages() != null) {
-                        String stageSetAfterHarvest = farmingData.getStageSetAfterHarvest();
-                        // Only reset if this is truly an eternal/regrowing crop
-                        // Check both: has stageSetAfterHarvest AND block type ID contains "Eternal"
-                        String blockTypeId = blockType.getId();
-                        boolean isEternal = stageSetAfterHarvest != null && !stageSetAfterHarvest.isEmpty() 
-                            && blockTypeId != null && blockTypeId.contains("Eternal");
-                        
-                        if (isEternal) {
-                            // Regrowing crop (eternal seed) - reset to starting stage instead of breaking
-                            // For multi-block crops (wheat, corn, tomato), break all upper blocks first to prevent seed duplication
-                            // Check blocks above the harvested block and break them if they're the same crop type
-                            String cropBlockTypeId = blockType.getId();
-                            for (int upperY = by + 1; upperY <= by + 10; upperY++) { // Check up to 10 blocks above
-                                int upperBlockId = blockChunk.getBlock(bx, upperY, bz);
-                                if (upperBlockId == 0) {
-                                    break; // Air, no more blocks above
-                                }
-                                com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType upperBlockType = 
-                                    com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType.getAssetMap().getAsset(upperBlockId);
-                                if (upperBlockType != null) {
-                                    String upperBlockTypeId = upperBlockType.getId();
-                                    // Check if it's part of the same crop (same base name, e.g., "Eternal_Wheat")
-                                    if (upperBlockTypeId != null && upperBlockTypeId.equals(cropBlockTypeId)) {
-                                        // Break the upper block without dropping items (parameter 0 = no drops)
-                                        blockChunk.breakBlock(bx, upperY, bz, 0);
-                                    } else {
-                                        // Different block type, stop checking
-                                        break;
-                                    }
-                                } else {
-                                    break; // Invalid block type, stop checking
-                                }
-                            }
-                            
-                            // We can use ChunkStore directly since we're in an EntityTickingSystem (ChunkStore is not being processed)
-                            com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkStore = world.getChunkStore().getStore();
-                            long chunkIndex = com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(bx, bz);
-                            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkRef = 
-                                world.getChunkStore().getChunkReference(chunkIndex);
-                            if (chunkRef != null) {
-                                com.hypixel.hytale.server.core.universe.world.chunk.BlockComponentChunk blockComponentChunk = 
-                                    chunkStore.getComponent(chunkRef, com.hypixel.hytale.server.core.universe.world.chunk.BlockComponentChunk.getComponentType());
-                                if (blockComponentChunk != null) {
-                                    int blockIndexColumn = com.hypixel.hytale.math.util.ChunkUtil.indexBlockInColumn(bx, by, bz);
-                                    com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> blockRef = 
-                                        blockComponentChunk.getEntityReference(blockIndexColumn);
-                                    
-                                    java.time.Instant now = world.getEntityStore().getStore().getResource(
-                                        com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType()).getGameTime();
-                                    
-                                    java.util.Map<String, com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData[]> stageSets = 
-                                        farmingData.getStages();
-                                    String startingStageSet = farmingData.getStartingStageSet();
-                                    com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData[] startingStages = 
-                                        startingStageSet != null ? stageSets.get(startingStageSet) : null;
-                                    com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData[] newStages = 
-                                        stageSets.get(stageSetAfterHarvest);
-                                    
-                                    if (startingStages != null && newStages != null && newStages.length > 0) {
-                                        int currentStageIndex = startingStages.length - 1;
-                                        com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData previousStage = 
-                                            startingStages[currentStageIndex];
-                                        
-                                        com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock farmingBlock;
-                                        if (blockRef == null) {
-                                            // Create new farming block entity
-                                            com.hypixel.hytale.component.Holder<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> blockEntity = 
-                                                com.hypixel.hytale.server.core.universe.world.storage.ChunkStore.REGISTRY.newHolder();
-                                            blockEntity.putComponent(
-                                                com.hypixel.hytale.server.core.modules.block.BlockModule.BlockStateInfo.getComponentType(), 
-                                                new com.hypixel.hytale.server.core.modules.block.BlockModule.BlockStateInfo(blockIndexColumn, chunkRef));
-                                            farmingBlock = new com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock();
-                                            farmingBlock.setLastTickGameTime(now);
-                                            farmingBlock.setCurrentStageSet(stageSetAfterHarvest);
-                                            blockEntity.addComponent(com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock.getComponentType(), farmingBlock);
-                                            blockRef = chunkStore.addEntity(blockEntity, com.hypixel.hytale.component.AddReason.SPAWN);
-                                        } else {
-                                            // Update existing farming block
-                                            farmingBlock = chunkStore.ensureAndGetComponent(
-                                                blockRef, 
-                                                com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock.getComponentType());
-                                        }
-                                        
-                                        if (farmingBlock != null) {
-                                            // Reset farming stage
-                                            farmingBlock.setCurrentStageSet(stageSetAfterHarvest);
-                                            farmingBlock.setGrowthProgress(0.0F);
-                                            farmingBlock.setExecutions(0);
-                                            farmingBlock.setGeneration(farmingBlock.getGeneration() + 1);
-                                            farmingBlock.setLastTickGameTime(now);
-                                            
-                                            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> sectionRef = 
-                                                world.getChunkStore().getChunkSectionReference(
-                                                    com.hypixel.hytale.math.util.ChunkUtil.chunkCoordinate(bx),
-                                                    com.hypixel.hytale.math.util.ChunkUtil.chunkCoordinate(by),
-                                                    com.hypixel.hytale.math.util.ChunkUtil.chunkCoordinate(bz)
-                                                );
-                                            if (sectionRef != null && blockRef != null) {
-                                                com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection section = 
-                                                    chunkStore.getComponent(sectionRef, 
-                                                        com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection.getComponentType());
-                                                if (section != null) {
-                                                    section.scheduleTick(
-                                                        com.hypixel.hytale.math.util.ChunkUtil.indexBlock(bx, by, bz), 
-                                                        now);
-                                                }
-                                                
-                                                // Apply the first stage of the new stage set to reset the crop
-                                                newStages[0].apply(
-                                                    chunkStore, 
-                                                    sectionRef, 
-                                                    blockRef, 
-                                                    bx, by, bz, 
-                                                    previousStage);
-                                                cropHarvested = true; // Successfully reset eternal crop
-                                            } else {
-                                                LOGGER.atWarning().log("[GreenHarvest] %s failed to reset eternal crop at (%d, %d, %d) - sectionRef or blockRef null", 
-                                                    npcComponent.getRoleName(), bx, by, bz);
-                                            }
-                                        } else {
-                                            LOGGER.atWarning().log("[GreenHarvest] %s failed to reset eternal crop at (%d, %d, %d) - farmingBlock null", 
-                                                npcComponent.getRoleName(), bx, by, bz);
-                                        }
-                                    } else {
-                                        LOGGER.atWarning().log("[GreenHarvest] %s failed to reset eternal crop at (%d, %d, %d) - startingStages or newStages invalid", 
-                                            npcComponent.getRoleName(), bx, by, bz);
-                                    }
-                                } else {
-                                    LOGGER.atWarning().log("[GreenHarvest] %s failed to reset eternal crop at (%d, %d, %d) - blockComponentChunk null", 
-                                        npcComponent.getRoleName(), bx, by, bz);
-                                }
-                            } else {
-                                LOGGER.atWarning().log("[GreenHarvest] %s failed to reset eternal crop at (%d, %d, %d) - chunkRef null", 
-                                    npcComponent.getRoleName(), bx, by, bz);
-                            }
-                        } else {
-                            // One-time farming crop - will be broken below
-                        }
-                    } else {
-                        // Not a farming crop - will be broken below
-                    }
-                    
-            // If we didn't successfully reset an eternal crop, break the block
-            if (!cropHarvested) {
+
+            FarmingData farmingMeta = harvestBlockType.getFarming();
+            String stageAfter = farmingMeta != null ? farmingMeta.getStageSetAfterHarvest() : null;
+            boolean regrowsAfterHarvest =
+                farmingMeta != null
+                    && farmingMeta.getStages() != null
+                    && stageAfter != null
+                    && !stageAfter.isEmpty();
+            boolean eternalCrop = harvestBlockType.getId() != null && harvestBlockType.getId().contains("Eternal");
+
+            CombinedItemContainer npcInv = InventoryComponent.getCombined(commandBuffer, npcRef, InventoryComponent.HOTBAR_FIRST);
+            Object2IntOpenHashMap<String> beforeCounts = countQuantitiesByItemId(npcInv);
+
+            int rotationIndex = harvestSection.getRotationIndex(bx, by, bz);
+            boolean harvested = FarmingUtil.harvest(world, commandBuffer, npcRef, harvestBlockType, rotationIndex, targetBlock);
+
+            if (harvested) {
+                Object2IntOpenHashMap<String> afterCounts = countQuantitiesByItemId(npcInv);
+                moveNpcHarvestDeltaToChest(
+                    npcInv,
+                    chestInventory,
+                    beforeCounts,
+                    afterCounts,
+                    eternalCrop,
+                    regrowsAfterHarvest,
+                    commandBuffer,
+                    bx,
+                    by,
+                    bz);
+            } else if (blockChunk.getBlock(bx, by, bz) != 0) {
+                // Failed harvest (e.g. regrow preconditions); avoid double-break when vanilla already cleared the cell
                 blockChunk.breakBlock(bx, by, bz, 0);
             }
             
@@ -672,5 +555,111 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
     @Override
     public Query<EntityStore> getQuery() {
         return this.query;
+    }
+
+    /** Eternal seed bags used for regrow are not deposited (conceptually replanted). */
+    private static boolean isEternalSeedItem(@Nonnull ItemStack stack) {
+        String id = stack.getItemId();
+        if (id == null || !id.contains("Eternal")) {
+            return false;
+        }
+        return id.contains("Seed");
+    }
+
+    @Nonnull
+    private static Object2IntOpenHashMap<String> countQuantitiesByItemId(@Nonnull CombinedItemContainer inv) {
+        Object2IntOpenHashMap<String> counts = new Object2IntOpenHashMap<>();
+        for (short slot = 0; slot < inv.getCapacity(); slot++) {
+            ItemStack s = inv.getItemStack(slot);
+            if (s != null && !s.isEmpty()) {
+                counts.addTo(s.getItemId(), s.getQuantity());
+            }
+        }
+        return counts;
+    }
+
+    /**
+     * {@link FarmingUtil#harvest} gives drops to the NPC via {@code ItemUtils.interactivelyPickupItem}; pull the new stacks
+     * off the dragonling and into the linked chest (skipping eternal seeds when regrowing).
+     */
+    private static void moveNpcHarvestDeltaToChest(
+            @Nonnull CombinedItemContainer npcInv,
+            @Nonnull ItemContainer chestInventory,
+            @Nonnull Object2IntOpenHashMap<String> beforeCounts,
+            @Nonnull Object2IntOpenHashMap<String> afterCounts,
+            boolean eternalCrop,
+            boolean regrowsAfterHarvest,
+            @Nonnull CommandBuffer<EntityStore> commandBuffer,
+            int bx,
+            int by,
+            int bz) {
+        for (String itemId : afterCounts.keySet()) {
+            int delta = afterCounts.getInt(itemId) - beforeCounts.getOrDefault(itemId, 0);
+            if (delta <= 0) {
+                continue;
+            }
+            ItemStack pullRequest = new ItemStack(itemId, delta);
+            ItemStackTransaction removed = npcInv.removeItemStack(pullRequest, false, true);
+            if (!removed.succeeded()) {
+                continue;
+            }
+            int taken = delta;
+            if (removed.getRemainder() != null && !removed.getRemainder().isEmpty()) {
+                taken = delta - removed.getRemainder().getQuantity();
+            }
+            if (taken <= 0) {
+                continue;
+            }
+            ItemStack recovered = new ItemStack(itemId, taken);
+            if (eternalCrop && regrowsAfterHarvest && isEternalSeedItem(recovered)) {
+                continue;
+            }
+            ItemStackTransaction addTx = chestInventory.addItemStack(recovered);
+            ItemStack remainder = addTx.getRemainder();
+            if (remainder != null && !remainder.isEmpty()) {
+                com.hypixel.hytale.component.Holder<EntityStore>[] itemDrops =
+                    com.hypixel.hytale.server.core.modules.entity.item.ItemComponent.generateItemDrops(
+                        commandBuffer,
+                        java.util.Collections.singletonList(remainder),
+                        new Vector3d(bx + 0.5, by + 0.5, bz + 0.5),
+                        Vector3f.ZERO);
+                for (com.hypixel.hytale.component.Holder<EntityStore> itemHolder : itemDrops) {
+                    if (itemHolder != null) {
+                        commandBuffer.addEntity(itemHolder, com.hypixel.hytale.component.AddReason.SPAWN);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolves multi-block roots via filler (same as stash / container commands) then reads {@link ItemContainerBlock}.
+     */
+    @Nullable
+    private static ItemContainerBlock findItemContainerBlockAt(@Nonnull World world, int x, int y, int z) {
+        ChunkStore chunkStoreApi = world.getChunkStore();
+        Ref<ChunkStore> chunkRef = chunkStoreApi.getChunkReference(ChunkUtil.indexChunkFromBlock(x, z));
+        if (chunkRef == null || !chunkRef.isValid()) {
+            return null;
+        }
+        Store<ChunkStore> chunkStore = chunkStoreApi.getStore();
+        BlockChunk blockChunk = chunkStore.getComponent(chunkRef, BlockChunk.getComponentType());
+        BlockComponentChunk blockComponentChunk = chunkStore.getComponent(chunkRef, BlockComponentChunk.getComponentType());
+        if (blockChunk == null || blockComponentChunk == null) {
+            return null;
+        }
+        Vector3i block = new Vector3i(x, y, z);
+        BlockSection section = blockChunk.getSectionAtBlockY(block.y);
+        int filler = section.getFiller(block.x, block.y, block.z);
+        if (filler != 0) {
+            block.x = block.x - FillerBlockUtil.unpackX(filler);
+            block.y = block.y - FillerBlockUtil.unpackY(filler);
+            block.z = block.z - FillerBlockUtil.unpackZ(filler);
+        }
+        Ref<ChunkStore> blockEntityRef = blockComponentChunk.getEntityReference(ChunkUtil.indexBlockInColumn(block.x, block.y, block.z));
+        if (blockEntityRef == null) {
+            return null;
+        }
+        return chunkStore.getComponent(blockEntityRef, ItemContainerBlock.getComponentType());
     }
 }
