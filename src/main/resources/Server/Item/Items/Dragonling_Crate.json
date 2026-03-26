@@ -1,0 +1,98 @@
+{
+  "TranslationProperties": {
+    "Name": "server.items.Dragonling_Crate.name",
+    "Description": "server.items.Dragonling_Crate.description"
+  },
+  "Quality": "Tool",
+  "ItemLevel": 18,
+  "PlayerAnimationsId": "Block",
+  "Categories": [
+    "Tools"
+  ],
+  "Tags": {
+    "Type": [
+      "Tool"
+    ]
+  },
+  "Interactions": {
+    "Primary": {
+      "Interactions": [
+        {
+          "Type": "TameworkSpawn"
+        }
+      ]
+    }
+  },
+  "Model": "Items/CaptureCrate/Capture_Crate.blockymodel",
+  "Texture": "Items/CaptureCrate/Capture_Crate_Texture.png",
+  "Icon": "Icons/ItemsGenerated/Tool_Capture_Crate.png",
+  "IconProperties": {
+    "Scale": 0.58823,
+    "Rotation": [
+      22.5,
+      45.0,
+      22.5
+    ],
+    "Translation": [
+      0.0,
+      -13.5
+    ]
+  },
+  "MaxStack": 1,
+  "State": {
+    "Filled": {
+      "Variant": true,
+      "TranslationProperties": {
+        "Name": "server.items.Dragonling_Crate.nameFilled",
+        "Description": "server.items.Dragonling_Crate.description"
+      },
+      "Interactions": {
+        "Primary": {
+          "Interactions": [
+            {
+              "Type": "TameworkSpawn"
+            }
+          ]
+        }
+      },
+      "Model": "Items/CaptureCrate/Capture_Crate.blockymodel",
+      "Texture": "Items/CaptureCrate/Capture_Crate_Texture.png",
+      "Icon": "Icons/ItemsGenerated/Tool_Capture_Crate_Full.png",
+      "IconProperties": {
+        "Scale": 0.58823,
+        "Rotation": [
+          22.5,
+          45.0,
+          22.5
+        ],
+        "Translation": [
+          0.0,
+          -13.5
+        ]
+      },
+      "MaxStack": 1
+    }
+  },
+  "Recipe": {
+    "TimeSeconds": 2,
+    "Input": [
+      {
+        "ItemId": "Tool_Capture_Crate",
+        "Quantity": 1
+      },
+      {
+        "ItemId": "Ingredient_Life_Essence",
+        "Quantity": 10
+      }
+    ],
+    "BenchRequirement": [
+      {
+        "Type": "Crafting",
+        "Categories": [
+          "Farming"
+        ],
+        "Id": "Farmingbench"
+      }
+    ]
+  }
+}

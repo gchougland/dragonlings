@@ -37,8 +37,5 @@
     "Radius": 1
   },
   "ItemSoundSetId": "ISS_Items_Gems",
-  "Interactions": {
-      "Secondary": "DragonlingUseNPC"
-  },
   "DropOnDeath": true
 }

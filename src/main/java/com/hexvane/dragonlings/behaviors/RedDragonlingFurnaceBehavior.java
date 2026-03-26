@@ -20,6 +20,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.DragonlingData;
+import com.hexvane.dragonlings.DragonlingTamework;
 import java.util.List;
 import javax.annotation.Nonnull;
 
@@ -28,7 +29,7 @@ import javax.annotation.Nonnull;
  */
 public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStore> {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
-    private static final double FURNACE_RADIUS = 8.0;
+    public static final double FURNACE_RADIUS = 8.0;
     private static final double BOOST_COOLDOWN = 2.0; // Seconds between boost attempts
     private static final double SPEED_BOOST = 2.0; // Additional seconds of progress per boost
     // Note: Base role has StopDistance of 2.0, so NPC will stop within 2.0 blocks of target
@@ -71,13 +72,17 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
             return;
         }
         
-        // Only process Red dragonlings that are leashed
-        if (!npcComponent.getRoleName().contains("Red") || !data.isLeashed()) {
+        if (!npcComponent.getRoleName().contains("Red")) {
             return;
         }
-        
-        Vector3d leashPos = data.getLeashPosition();
+
+        Ref<EntityStore> npcRef = archetypeChunk.getReferenceTo(index);
+        Vector3d leashPos = DragonlingTamework.getWorkAnchor(commandBuffer, npcRef);
         if (leashPos == null) {
+            return;
+        }
+        if (DragonlingTamework.isTamed(store, npcRef)
+            && DragonlingTamework.shouldPauseHomeAssignmentWork(npcComponent, commandBuffer, npcRef)) {
             return;
         }
         
@@ -94,8 +99,6 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
             return;
         }
         
-        // Track cooldown per dragonling
-        Ref<EntityStore> npcRef = archetypeChunk.getReferenceTo(index);
         double currentTime = System.currentTimeMillis() / 1000.0;
         Double lastBoost = boostCooldowns.get(npcRef);
         

@@ -1,0 +1,35 @@
+{
+  "Enabled": true,
+  "Priority": 10,
+  "RoleIds": [
+    "Dragonling_Blue"
+  ],
+  "Interactions": [
+    {
+      "Type": "Tame",
+      "UseLovedItems": false,
+      "ItemsInHand": [
+        "Ingredient_Ice_Essence"
+      ],
+      "Requires": {
+        "All": {
+          "IsNotTamed": true
+        }
+      }
+    },
+    {
+      "Type": "Feed",
+      "UseLovedItems": false,
+      "Heal": 100,
+      "ItemsInHand": [
+        "Ingredient_Ice_Essence"
+      ],
+      "Requires": {
+        "All": {
+          "IsTamed": true,
+          "PlayerIsOwner": true
+        }
+      }
+    }
+  ]
+}

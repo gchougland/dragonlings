@@ -1,5 +1,8 @@
 {
   "Type": "Generic",
+  "KnockbackScale": 0.5,
+  "DefaultSubState": "Default",
+  "StartState": "Idle",
   "Appearance": { "Compute": "Appearance" },
   "DropList": "Drop_Wildlife",
   "MotionControllerList": [
@@ -12,50 +15,215 @@
     }
   ],
   "MaxHealth": { "Compute": "MaxHealth" },
-  "MaxSpeed": 6,
-  "WanderRadius": { "Compute": "WanderRadius" },
   "ApplySeparation": true,
-  "SeparationDistance": 1.5,
+  "SeparationDistance": 2.5,
   "Instructions": [
     {
       "Instructions": [
         {
+          "$Comment": "Validation-only state sensor (disabled). Pairs Sleep with state map (Hold export). Pattern: Alecs Animal Husbandry Template_Animal_Critter_Tamed_AH.",
+          "Enabled": false,
           "Sensor": {
-            "Type": "ReadPosition",
-            "Slot": "LastSeen",
-            "Range": 512
-          },
-          "BodyMotion": {
-            "Type": "Seek",
-            "SlowDownDistance": { "Compute": "SlowDownDistance" },
-            "StopDistance": { "Compute": "StopDistance" },
-            "RelativeSpeed": 0.8
-          },
+            "Type": "State",
+            "State": "Sleep"
+          }
+        },
+        {
+          "$Comment": "Register Tamework whistle / command states so SetState succeeds and sensors match.",
+          "Enabled": false,
           "Actions": [
+            { "Type": "State", "State": "Follow" },
+            { "Type": "State", "State": "Hold" },
+            { "Type": "State", "State": "Idle" },
+            { "Type": "State", "State": "Defend" },
+            { "Type": "State", "State": "Aggressive" },
+            { "Type": "State", "State": "CommandMove" },
+            { "Type": "State", "State": "Sleep" }
+          ]
+        },
+        {
+          "$Comment": "Bridge command-item move / ping hooks into Tamework movement (Template_Tamework_Example_Simple).",
+          "Continue": true,
+          "Sensor": {
+            "Type": "Any"
+          },
+          "Instructions": [
             {
-              "Type": "PlayAnimation",
-              "Slot": "Status",
-              "AnimationId": "NPC/Pets/Dragonling/Animations/Walk"
+              "Reference": "Component_Tamework_Instruction_Command_Move",
+              "Modify": {
+                "_ExportStates": [
+                  "CommandMove",
+                  "Idle"
+                ]
+              }
             }
           ]
         },
         {
+          "$Comment": "No-op branch to pair CommandMove with a state sensor.",
+          "Continue": true,
           "Sensor": {
-            "Type": "Any"
+            "Type": "State",
+            "State": "CommandMove"
+          }
+        },
+        {
+          "$Comment": "Whistle Follow: Tamework teleport-follow toward MasterTarget (Alecs Animal Husbandry Template_Animal_Critter_Tamed_AH).",
+          "Sensor": {
+            "Type": "State",
+            "State": "Follow"
           },
-          "BodyMotion": {
-            "Type": "WanderInCircle",
-            "Radius": { "Compute": "WanderRadius" },
-            "MaxHeadingChange": 45,
-            "RelativeSpeed": 0.6,
-            "MinWalkTime": 1,
-            "RelaxedMoveConstraints": false
-          },
-          "Actions": [
+          "Instructions": [
             {
-              "Type": "PlayAnimation",
-              "Slot": "Status",
-              "AnimationId": "NPC/Pets/Dragonling/Animations/Idle"
+              "Reference": "Component_Tamework_Instruction_Follow_Simple_TP",
+              "Modify": {
+                "MasterTargetSlot": {
+                  "Compute": "MasterTargetSlot"
+                },
+                "FollowLockOnRange": {
+                  "Compute": "FollowLockOnRange"
+                },
+                "FollowSeekRange": {
+                  "Compute": "FollowSeekRange"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "$Comment": "Whistle Hold: stay put / sleep transitions (Tamework Hold).",
+          "Sensor": {
+            "Type": "State",
+            "State": "Hold"
+          },
+          "Instructions": [
+            {
+              "Reference": "Component_Tamework_Instruction_Hold",
+              "Modify": {
+                "_ExportStates": [
+                  "Sleep"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "$Comment": "Whistle Attack target / Defend: combat leash + seek (Template_Tamework_Example_Simple).",
+          "Sensor": {
+            "Type": "State",
+            "State": "Defend"
+          },
+          "Instructions": [
+            {
+              "Reference": "Component_Tamework_Instruction_Defend",
+              "Modify": {
+                "HardLeashDistance": {
+                  "Compute": "HardLeashDistance"
+                },
+                "AlertedRange": {
+                  "Compute": "AlertedRange"
+                },
+                "ViewSector": {
+                  "Compute": "ViewSector"
+                },
+                "HearingRange": {
+                  "Compute": "HearingRange"
+                },
+                "AbsoluteDetectionRange": {
+                  "Compute": "AbsoluteDetectionRange"
+                },
+                "ViewRange": {
+                  "Compute": "ViewRange"
+                },
+                "Attack": {
+                  "Compute": "Attack"
+                },
+                "AttackDistance": {
+                  "Compute": "AttackDistance"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "$Comment": "Aggressive (e.g. cross-world follow filter): same combat component as Defend.",
+          "Sensor": {
+            "Type": "State",
+            "State": "Aggressive"
+          },
+          "Instructions": [
+            {
+              "Reference": "Component_Tamework_Instruction_Defend",
+              "Modify": {
+                "HardLeashDistance": {
+                  "Compute": "HardLeashDistance"
+                },
+                "AlertedRange": {
+                  "Compute": "AlertedRange"
+                },
+                "ViewSector": {
+                  "Compute": "ViewSector"
+                },
+                "HearingRange": {
+                  "Compute": "HearingRange"
+                },
+                "AbsoluteDetectionRange": {
+                  "Compute": "AbsoluteDetectionRange"
+                },
+                "ViewRange": {
+                  "Compute": "ViewRange"
+                },
+                "Attack": {
+                  "Compute": "Attack"
+                },
+                "AttackDistance": {
+                  "Compute": "AttackDistance"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "$Comment": "Default + whistle Idle: harvest/water/furnace seek uses LastSeek; otherwise wander near leash. Java sets LastSeen when needed.",
+          "Sensor": {
+            "Type": "State",
+            "State": "Idle"
+          },
+          "Instructions": [
+            {
+              "$Comment": "Seek uses ReadPosition/LastSeen; Java (DragonlingAISystem + MarkedEntitySeekBridge) sets positions.",
+              "Sensor": {
+                "Type": "ReadPosition",
+                "Slot": "LastSeen",
+                "MinRange": 0,
+                "Range": 512
+              },
+              "BodyMotion": {
+                "Type": "Seek",
+                "SlowDownDistance": { "Compute": "SlowDownDistance" },
+                "StopDistance": { "Compute": "StopDistance" },
+                "RelativeSpeed": 0.8
+              }
+            },
+            {
+              "Sensor": {
+                "Type": "Any"
+              },
+              "BodyMotion": {
+                "Type": "WanderInCircle",
+                "Radius": { "Compute": "WanderRadius" },
+                "MaxHeadingChange": 45,
+                "RelativeSpeed": 0.6,
+                "MinWalkTime": 1,
+                "RelaxedMoveConstraints": false
+              },
+              "Actions": [
+                {
+                  "Type": "PlayAnimation",
+                  "Slot": "Status",
+                  "Animation": "Idle"
+                }
+              ]
             }
           ]
         }
@@ -89,6 +257,81 @@
     "NameTranslationKey": {
       "Value": "server.npcRoles.Dragonling.name",
       "Description": "Translation key for NPC name display"
+    },
+    "MasterTargetSlot": {
+      "Value": "MasterTarget",
+      "Description": "Blackboard slot for owner/master (Alec's Tamework!)"
+    },
+    "FollowLockOnRange": {
+      "Value": 128,
+      "Description": "Tamework Follow_Simple_TP lock-on range"
+    },
+    "FollowSeekRange": {
+      "Value": 25,
+      "Description": "Tamework Follow_Simple_TP seek range"
+    },
+    "ViewRange": {
+      "Value": 16,
+      "Description": "Defend: view range"
+    },
+    "ViewSector": {
+      "Value": 120,
+      "Description": "Defend: view sector"
+    },
+    "HearingRange": {
+      "Value": 10,
+      "Description": "Defend: hearing range"
+    },
+    "AbsoluteDetectionRange": {
+      "Value": 3,
+      "Description": "Defend: guaranteed detection range"
+    },
+    "AlertedRange": {
+      "Value": 28,
+      "Description": "Defend: alerted search range"
+    },
+    "HardLeashDistance": {
+      "Value": 30,
+      "Description": "Defend: max distance from leash while defending"
+    },
+    "Attack": {
+      "Value": "Root_NPC_Attack_Melee",
+      "Description": "Root interaction for melee attacks while Defend"
+    },
+    "AttackDistance": {
+      "Value": 2.5,
+      "Description": "Defend: attack reach"
     }
+  },
+  "InteractionInstruction": {
+    "Instructions": [
+      {
+        "Continue": true,
+        "Sensor": {
+          "Type": "Any"
+        },
+        "Actions": [
+          {
+            "Type": "TameworkInteractPrompt"
+          }
+        ]
+      },
+      {
+        "Sensor": {
+          "Type": "HasInteracted"
+        },
+        "Actions": [
+          {
+            "Type": "LockOnInteractionTarget",
+            "TargetSlot": {
+              "Compute": "MasterTargetSlot"
+            }
+          },
+          {
+            "Type": "TameworkInteract"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -8,7 +8,6 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
-import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Vector3f;
@@ -16,6 +15,7 @@ import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingData;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData;
 import com.hypixel.hytale.server.core.inventory.InventoryComponent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.CombinedItemContainer;
@@ -29,12 +29,14 @@ import com.hypixel.hytale.server.core.universe.world.chunk.BlockChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.BlockComponentChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
+import com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.FillerBlockUtil;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hexvane.dragonlings.DragonlingData;
+import com.hexvane.dragonlings.DragonlingTamework;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import java.util.HashMap;
 import java.util.List;
@@ -46,8 +48,7 @@ import javax.annotation.Nullable;
  * Behavior system for Green dragonlings - harvests crops and deposits them in chest.
  */
 public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntityStore> {
-    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
-    private static final double HARVEST_RADIUS = 11.0;
+    public static final double HARVEST_RADIUS = 11.0;
     private static final double HARVEST_COOLDOWN = 2.0; // Seconds between crop harvests
     private static final double APPROACH_DISTANCE = 3.0; // Distance to trigger harvesting
     
@@ -78,28 +79,51 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             @Nonnull CommandBuffer<EntityStore> commandBuffer) {
         
         NPCEntity npcComponent = archetypeChunk.getComponent(index, this.npcComponentType);
-        DragonlingData data = archetypeChunk.getComponent(index, this.dragonlingDataType);
+        Ref<EntityStore> npcRef = archetypeChunk.getReferenceTo(index);
+        DragonlingData data = commandBuffer.getComponent(npcRef, this.dragonlingDataType);
         
         if (npcComponent == null || data == null) {
             return;
         }
         
-        // Only process Green dragonlings that are leashed to a chest
-        if (!npcComponent.getRoleName().contains("Green") || !data.isLeashed()) {
+        if (!npcComponent.getRoleName().contains("Green")) {
             return;
         }
-        
-        String leashBlockType = data.getLeashBlockType();
-        if (leashBlockType == null || !leashBlockType.contains("Chest")) {
-            return; // Not leashed to a chest
-        }
-        
-        Vector3d leashPos = data.getLeashPosition();
+
+        Vector3d leashPos = DragonlingTamework.getWorkAnchor(commandBuffer, npcRef);
         if (leashPos == null) {
             return;
         }
+        if (DragonlingTamework.isTamed(store, npcRef)
+            && DragonlingTamework.shouldPauseHomeAssignmentWork(npcComponent, commandBuffer, npcRef)) {
+            return;
+        }
+        try {
+        tickHarvestBody(
+            dt,
+            archetypeChunk,
+            store,
+            commandBuffer,
+            npcComponent,
+            npcRef,
+            data,
+            leashPos);
+        } finally {
+            commandBuffer.putComponent(npcRef, this.dragonlingDataType, data);
+        }
+    }
+
+    private void tickHarvestBody(
+            float dt,
+            @Nonnull ArchetypeChunk<EntityStore> archetypeChunk,
+            @Nonnull Store<EntityStore> store,
+            @Nonnull CommandBuffer<EntityStore> commandBuffer,
+            @Nonnull NPCEntity npcComponent,
+            @Nonnull Ref<EntityStore> npcRef,
+            @Nonnull DragonlingData data,
+            @Nonnull Vector3d leashPos) {
         
-        TransformComponent transform = store.getComponent(archetypeChunk.getReferenceTo(index), TransformComponent.getComponentType());
+        TransformComponent transform = store.getComponent(npcRef, TransformComponent.getComponentType());
         if (transform == null) {
             return;
         }
@@ -109,25 +133,10 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             return;
         }
         
-        Ref<EntityStore> npcRef = archetypeChunk.getReferenceTo(index);
         double currentTime = System.currentTimeMillis() / 1000.0;
         
         Vector3d npcPos = transform.getPosition();
-        
-        // Check for existing target crop
         Vector3d existingTarget = data.getTargetPosition();
-        boolean shouldHarvestExisting = false;
-        
-        if (existingTarget != null && data.getAIState() == com.hexvane.dragonlings.DragonlingAIState.HARVEST_CROPS) {
-            double distanceToCurrentTarget = npcPos.distanceTo(existingTarget);
-            if (distanceToCurrentTarget <= APPROACH_DISTANCE) {
-                // We're close enough - check if we can harvest it (this will be handled in harvesting section)
-                shouldHarvestExisting = true;
-            } else {
-                // Still moving towards target - don't scan yet, but also don't return early
-                // We'll scan later but prioritize the existing target
-            }
-        }
         
         int centerX = (int) Math.floor(leashPos.x);
         int centerY = (int) Math.floor(leashPos.y); // Y is vertical
@@ -137,8 +146,8 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
         if (chunk == null) {
             return;
         }
-        
-        ItemContainerBlock chestBlock = findItemContainerBlockAt(world, centerX, centerY, centerZ);
+
+        ItemContainerBlock chestBlock = findItemContainerNearHome(world, leashPos);
         if (chestBlock == null) {
             return;
         }
@@ -150,7 +159,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
         com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType bestBlockType = null;
         com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk bestChunk = null;
         
-        // Scan area for crops in a sphere - find the closest mature crop
+        // Scan area for crops in a true 3D sphere (not a cylinder or single Y): horizontal + dy filtered by radiusSq.
         // Note: In Hytale, getBlock(x, y, z) where y is vertical and z is north/south
         int radius = (int) Math.ceil(HARVEST_RADIUS);
         double radiusSq = HARVEST_RADIUS * HARVEST_RADIUS;
@@ -194,59 +203,14 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                     if (blockType == null) {
                         continue;
                     }
-                    
-                    // Check if it's a harvestable crop
-                    com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering gathering = blockType.getGathering();
-                    if (gathering == null || !gathering.isHarvestable()) {
+
+                    // Check if it's a harvestable, mature crop (uses WorldChunk block entity — same as watering can)
+                    if (!isMatureHarvestableCrop(world, bx, by, bz, blockType)) {
                         continue;
                     }
                     
-                    // Check if crop is mature (for farming crops, check if at final stage)
-                    com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingData farmingData = blockType.getFarming();
-                    if (farmingData != null && farmingData.getStages() != null) {
-                        // This is a farming crop - check if it's at the final/mature stage
-                        // We need to check the FarmingBlock component to see the current stage
-                        com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkStore = world.getChunkStore().getStore();
-                        long chunkIndex = com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(bx, bz);
-                        com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkRef = 
-                            world.getChunkStore().getChunkReference(chunkIndex);
-                        if (chunkRef != null) {
-                            com.hypixel.hytale.server.core.universe.world.chunk.BlockComponentChunk blockComponentChunk = 
-                                chunkStore.getComponent(chunkRef, com.hypixel.hytale.server.core.universe.world.chunk.BlockComponentChunk.getComponentType());
-                            if (blockComponentChunk != null) {
-                                int blockIndexColumn = com.hypixel.hytale.math.util.ChunkUtil.indexBlockInColumn(bx, by, bz);
-                                com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> blockRef = 
-                                    blockComponentChunk.getEntityReference(blockIndexColumn);
-                                if (blockRef != null) {
-                                    com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock farmingBlock = 
-                                        chunkStore.getComponent(blockRef, com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock.getComponentType());
-                                    if (farmingBlock != null) {
-                                        String currentStageSet = farmingBlock.getCurrentStageSet();
-                                        if (currentStageSet == null) {
-                                            currentStageSet = farmingData.getStartingStageSet();
-                                        }
-                                        java.util.Map<String, com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData[]> stageSets = 
-                                            farmingData.getStages();
-                                        com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData[] stages = 
-                                            stageSets.get(currentStageSet);
-                                        if (stages != null) {
-                                            float growthProgress = farmingBlock.getGrowthProgress();
-                                            int currentStage = (int) growthProgress;
-                                            // Crop is mature if it's at the final stage
-                                            if (currentStage < stages.length - 1) {
-                                                // Not mature yet, skip this crop
-                                                continue;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Calculate distance from NPC to this crop
-                    Vector3d cropPos = new Vector3d(bx + 0.5, by + 0.5, bz + 0.5);
-                    double distance = npcPos.distanceTo(cropPos);
+                    Vector3d approachPos = resolveHarvestApproachPosition(world, bx, by, bz, blockType);
+                    double distance = npcPos.distanceTo(approachPos);
                     
                     // Track the nearest mature crop
                     if (distance < bestDistance) {
@@ -260,108 +224,17 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                 }
             }
         }
-        
-        // Handle existing target if we're close enough to harvest it
-        if (shouldHarvestExisting && existingTarget != null) {
-            // We have an existing target and we're close - try to harvest it
-            // Need to reverse-engineer block position from target position
-            int targetX = (int) Math.floor(existingTarget.x);
-            int targetY = (int) Math.floor(existingTarget.y);
-            int targetZ = (int) Math.floor(existingTarget.z);
-            
-            // Get chunk for the target
-            long targetChunkIndex = com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(targetX, targetZ);
-            WorldChunk targetChunk = world.getChunkIfInMemory(targetChunkIndex);
-            
-            if (targetChunk != null) {
-                double distanceToTarget = npcPos.distanceTo(existingTarget);
-                if (distanceToTarget <= APPROACH_DISTANCE) {
-                    // Check if this crop still exists and is mature
-                    int blockId = targetChunk.getBlock(targetX, targetY, targetZ);
-                    if (blockId != 0) {
-                        com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType blockType = 
-                            com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType.getAssetMap().getAsset(blockId);
-                        if (blockType != null) {
-                            com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering gathering = blockType.getGathering();
-                            if (gathering != null && gathering.isHarvestable()) {
-                                // Check if mature
-                                boolean isMature = true;
-                                com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingData farmingData = blockType.getFarming();
-                                if (farmingData != null && farmingData.getStages() != null) {
-                                    com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkStore = world.getChunkStore().getStore();
-                                    long chunkIndex = com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(targetX, targetZ);
-                                    com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkRef = 
-                                        world.getChunkStore().getChunkReference(chunkIndex);
-                                    if (chunkRef != null) {
-                                        com.hypixel.hytale.server.core.universe.world.chunk.BlockComponentChunk blockComponentChunk = 
-                                            chunkStore.getComponent(chunkRef, com.hypixel.hytale.server.core.universe.world.chunk.BlockComponentChunk.getComponentType());
-                                        if (blockComponentChunk != null) {
-                                            int blockIndexColumn = com.hypixel.hytale.math.util.ChunkUtil.indexBlockInColumn(targetX, targetY, targetZ);
-                                            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> blockRef = 
-                                                blockComponentChunk.getEntityReference(blockIndexColumn);
-                                            if (blockRef != null) {
-                                                com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock farmingBlock = 
-                                                    chunkStore.getComponent(blockRef, com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock.getComponentType());
-                                                if (farmingBlock != null) {
-                                                    String currentStageSet = farmingBlock.getCurrentStageSet();
-                                                    if (currentStageSet == null) {
-                                                        currentStageSet = farmingData.getStartingStageSet();
-                                                    }
-                                                    java.util.Map<String, com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData[]> stageSets = 
-                                                        farmingData.getStages();
-                                                    com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData[] stages = 
-                                                        stageSets.get(currentStageSet);
-                                                    if (stages != null) {
-                                                        float growthProgress = farmingBlock.getGrowthProgress();
-                                                        int currentStage = (int) growthProgress;
-                                                        if (currentStage < stages.length - 1) {
-                                                            isMature = false;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                if (isMature) {
-                                    bestCropX = targetX;
-                                    bestCropY = targetY;
-                                    bestCropZ = targetZ;
-                                    bestChunk = targetChunk;
-                                    bestBlockType = blockType;
-                                    bestDistance = distanceToTarget;
-                                    // Fall through to harvesting logic below - skip scanning since we already have a target
-                                } else {
-                                    // Not mature anymore, clear target
-                                    data.setTargetPosition(null);
-                                    data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
-                                    return;
-                                }
-                            } else {
-                                // Not harvestable anymore, clear target
-                                data.setTargetPosition(null);
-                                data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
-                                return;
-                            }
-                        } else {
-                            // Block doesn't exist, clear target
-                            data.setTargetPosition(null);
-                            data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
-                            return;
-                        }
-                    } else {
-                        // Block doesn't exist, clear target
-                        data.setTargetPosition(null);
-                        data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
-                        return;
-                    }
-                } else {
-                    // Not close enough yet, keep moving
-                    return;
-                }
-            } else {
-                // Chunk unloaded, clear target
+
+        if (existingTarget != null && data.getAIState() == com.hexvane.dragonlings.DragonlingAIState.HARVEST_CROPS) {
+            HarvestCropMatch committed =
+                findCropMatchingApproachTarget(world, centerX, centerY, centerZ, existingTarget, npcPos);
+            if (committed != null) {
+                bestCropX = committed.bx;
+                bestCropY = committed.by;
+                bestCropZ = committed.bz;
+                bestBlockType = committed.blockType;
+                bestChunk = committed.chunk;
+            } else if (npcPos.distanceTo(existingTarget) <= APPROACH_DISTANCE) {
                 data.setTargetPosition(null);
                 data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
                 return;
@@ -378,11 +251,11 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             return;
         }
         
-        // We found a mature crop - set target position to the crop
-        Vector3d cropPos = new Vector3d(bestCropX + 0.5, bestCropY + 0.5, bestCropZ + 0.5);
-        Vector3d targetPos = cropPos.clone();
+        Vector3d approachPos =
+            resolveHarvestApproachPosition(world, bestCropX, bestCropY, bestCropZ, bestBlockType);
+        Vector3d targetPos = approachPos.clone();
         
-        double distanceToCrop = npcPos.distanceTo(cropPos);
+        boolean inHarvestRange = isWithinHarvestRange(npcPos, world, bestCropX, bestCropY, bestCropZ, bestBlockType);
         
         // Check if we're already targeting this crop
         boolean isAlreadyTargeting = (existingTarget != null && 
@@ -397,8 +270,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             data.setTargetPosition(targetPos);
         }
         
-        // If close enough to crop, check cooldown and harvest it
-        if (distanceToCrop <= APPROACH_DISTANCE) {
+        if (inHarvestRange) {
             // Check cooldown before harvesting
             Double lastHarvest = harvestCooldowns.get(npcRef);
             if (lastHarvest != null && (currentTime - lastHarvest) < HARVEST_COOLDOWN) {
@@ -409,7 +281,6 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             int bx = bestCropX;
             int by = bestCropY;
             int bz = bestCropZ;
-            com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType blockType = bestBlockType;
             WorldChunk blockChunk = bestChunk;
             
             // Play Blow animation (harvesting action)
@@ -630,6 +501,293 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                 }
             }
         }
+    }
+
+    /**
+     * Tamework {@code StoreHome} may hit the chest hitbox slightly off the block origin; search a small neighborhood.
+     */
+    @Nullable
+    private static ItemContainerBlock findItemContainerNearHome(@Nonnull World world, @Nonnull Vector3d home) {
+        int cx = (int) Math.floor(home.x);
+        int cy = (int) Math.floor(home.y);
+        int cz = (int) Math.floor(home.z);
+        for (int dy = -2; dy <= 2; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    ItemContainerBlock b = findItemContainerBlockAt(world, cx + dx, cy + dy, cz + dz);
+                    if (b != null) {
+                        return b;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Resolves filler / multi-block root to the block entity ref (same pattern as {@link #findItemContainerBlockAt}).
+     */
+    @Nullable
+    private static Ref<ChunkStore> resolveBlockEntityRefForFarming(@Nonnull World world, int x, int y, int z) {
+        ChunkStore chunkStoreApi = world.getChunkStore();
+        Ref<ChunkStore> chunkRef = chunkStoreApi.getChunkReference(ChunkUtil.indexChunkFromBlock(x, z));
+        if (chunkRef == null || !chunkRef.isValid()) {
+            return null;
+        }
+        Store<ChunkStore> chunkStore = chunkStoreApi.getStore();
+        BlockChunk blockChunk = chunkStore.getComponent(chunkRef, BlockChunk.getComponentType());
+        BlockComponentChunk blockComponentChunk = chunkStore.getComponent(chunkRef, BlockComponentChunk.getComponentType());
+        if (blockChunk == null || blockComponentChunk == null) {
+            return null;
+        }
+        Vector3i block = new Vector3i(x, y, z);
+        BlockSection section = blockChunk.getSectionAtBlockY(block.y);
+        if (section == null) {
+            return null;
+        }
+        int filler = section.getFiller(block.x, block.y, block.z);
+        if (filler != 0) {
+            block.x = block.x - FillerBlockUtil.unpackX(filler);
+            block.y = block.y - FillerBlockUtil.unpackY(filler);
+            block.z = block.z - FillerBlockUtil.unpackZ(filler);
+        }
+        return blockComponentChunk.getEntityReference(ChunkUtil.indexBlockInColumn(block.x, block.y, block.z));
+    }
+
+    /**
+     * Fully-grown crops often use a block type whose id contains {@code StageFinal} (including eternal crops); the
+     * chunk may have no {@link FarmingBlock} then — growth state is implicit in the block type. Intermediate stages
+     * keep a block entity with {@link FarmingBlock} and {@code growthProgress} (see {@link FarmingUtil#tickFarming}).
+     */
+    private static boolean isFinalCropStageBlockType(@Nonnull BlockType blockType) {
+        String id = blockType.getId();
+        return id != null && id.contains("StageFinal");
+    }
+
+    /**
+     * Wall apple fruit on trees (seek ground beneath the column; soil apples use {@code Plant_Crop_Apple_Block} without
+     * {@code Wall}).
+     */
+    private static boolean isAppleTreeWallCrop(@Nonnull BlockType blockType) {
+        String id = blockType.getId();
+        return id != null && id.contains("Crop_Apple") && id.contains("Wall");
+    }
+
+    private static final double APPROACH_TARGET_MATCH = 0.85;
+
+    /**
+     * First standable surface in column (bx, bz) below {@code appleY}: non-air block with air above, so the NPC can stand
+     * on top. Falls back to first solid if no air gap is found.
+     */
+    @Nullable
+    private static Vector3d findGroundStandBelowAppleColumn(@Nonnull World world, int bx, int appleY, int bz) {
+        long chunkIndex = ChunkUtil.indexChunkFromBlock(bx, bz);
+        WorldChunk wc = world.getChunkIfInMemory(chunkIndex);
+        if (wc == null) {
+            return null;
+        }
+        for (int y = appleY - 1; y >= 0; y--) {
+            int blockId = wc.getBlock(bx, y, bz);
+            if (blockId == 0) {
+                continue;
+            }
+            int above = y < 319 ? wc.getBlock(bx, y + 1, bz) : 0;
+            if (above == 0) {
+                return new Vector3d(bx + 0.5, y + 1.0, bz + 0.5);
+            }
+        }
+        for (int y = appleY - 1; y >= 0; y--) {
+            if (wc.getBlock(bx, y, bz) != 0) {
+                return new Vector3d(bx + 0.5, y + 1.0, bz + 0.5);
+            }
+        }
+        return null;
+    }
+
+    @Nonnull
+    private static Vector3d resolveHarvestApproachPosition(
+            @Nonnull World world, int bx, int by, int bz, @Nonnull BlockType blockType) {
+        if (isAppleTreeWallCrop(blockType)) {
+            Vector3d ground = findGroundStandBelowAppleColumn(world, bx, by, bz);
+            if (ground != null) {
+                return ground;
+            }
+        }
+        return new Vector3d(bx + 0.5, by + 0.5, bz + 0.5);
+    }
+
+    private static boolean isWithinHarvestRange(
+            @Nonnull Vector3d npcPos,
+            @Nonnull World world,
+            int bx,
+            int by,
+            int bz,
+            @Nonnull BlockType blockType) {
+        Vector3d approach = resolveHarvestApproachPosition(world, bx, by, bz, blockType);
+        return npcPos.distanceTo(approach) <= APPROACH_DISTANCE;
+    }
+
+    @Nullable
+    private static HarvestCropMatch findCropMatchingApproachTarget(
+            @Nonnull World world,
+            int centerX,
+            int centerY,
+            int centerZ,
+            @Nonnull Vector3d existingTarget,
+            @Nonnull Vector3d npcPos) {
+        int radius = (int) Math.ceil(HARVEST_RADIUS);
+        double radiusSq = HARVEST_RADIUS * HARVEST_RADIUS;
+        double bestDist = Double.MAX_VALUE;
+        HarvestCropMatch best = null;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                double horizontalDistSq = dx * dx + dz * dz;
+                if (horizontalDistSq > radiusSq) {
+                    continue;
+                }
+                int bx = centerX + dx;
+                int bz = centerZ + dz;
+                WorldChunk blockChunk = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(bx, bz));
+                if (blockChunk == null) {
+                    continue;
+                }
+                for (int dy = -radius; dy <= radius; dy++) {
+                    int by = centerY + dy;
+                    double distanceSq = horizontalDistSq + dy * dy;
+                    if (distanceSq > radiusSq) {
+                        continue;
+                    }
+                    int blockId = blockChunk.getBlock(bx, by, bz);
+                    if (blockId == 0) {
+                        continue;
+                    }
+                    BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+                    if (blockType == null) {
+                        continue;
+                    }
+                    if (!isMatureHarvestableCrop(world, bx, by, bz, blockType)) {
+                        continue;
+                    }
+                    Vector3d approach = resolveHarvestApproachPosition(world, bx, by, bz, blockType);
+                    if (approach.distanceTo(existingTarget) > APPROACH_TARGET_MATCH) {
+                        continue;
+                    }
+                    double d = npcPos.distanceTo(approach);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        best = new HarvestCropMatch(bx, by, bz, blockType, blockChunk);
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    private static final class HarvestCropMatch {
+        final int bx;
+        final int by;
+        final int bz;
+        @Nonnull
+        final BlockType blockType;
+        @Nonnull
+        final WorldChunk chunk;
+
+        HarvestCropMatch(int bx, int by, int bz, @Nonnull BlockType blockType, @Nonnull WorldChunk chunk) {
+            this.bx = bx;
+            this.by = by;
+            this.bz = bz;
+            this.blockType = blockType;
+            this.chunk = chunk;
+        }
+    }
+
+    /**
+     * Harvestable blocks with multi-stage growth: either the final-stage block type ({@link #isFinalCropStageBlockType})
+     * or {@link FarmingBlock} on the block entity with growth past the last stage (same idea as {@link FarmingUtil}).
+     */
+    private static boolean isMatureHarvestableCrop(
+            @Nonnull World world,
+            int bx,
+            int by,
+            int bz,
+            @Nonnull BlockType blockType) {
+        BlockGathering gathering = blockType.getGathering();
+        if (gathering == null || !gathering.isHarvestable()) {
+            return false;
+        }
+        FarmingData farmingData = blockType.getFarming();
+        if (farmingData == null || farmingData.getStages() == null) {
+            return true;
+        }
+        if (isFinalCropStageBlockType(blockType)) {
+            return true;
+        }
+        WorldChunk wc =
+            world.getChunkIfInMemory(com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(bx, bz));
+        Ref<ChunkStore> blockRef =
+            wc != null ? wc.getBlockComponentEntity(bx, by, bz) : null;
+        if (blockRef == null) {
+            blockRef = resolveBlockEntityRefForFarming(world, bx, by, bz);
+        }
+        if (blockRef == null) {
+            return false;
+        }
+        Store<ChunkStore> chunkStore = world.getChunkStore().getStore();
+        FarmingBlock farmingBlock = chunkStore.getComponent(blockRef, FarmingBlock.getComponentType());
+        if (farmingBlock == null) {
+            return false;
+        }
+        float growthProgress = farmingBlock.getGrowthProgress();
+        String currentStageSet = farmingBlock.getCurrentStageSet();
+        java.util.Map<String, FarmingStageData[]> stageSets = farmingData.getStages();
+        FarmingStageData[] stages = currentStageSet != null ? stageSets.get(currentStageSet) : null;
+        if (stages == null) {
+            currentStageSet = farmingData.getStartingStageSet();
+            stages = currentStageSet != null ? stageSets.get(currentStageSet) : null;
+        }
+        if (stages == null || stages.length == 0) {
+            return true;
+        }
+        return isFarmingGrowthMatureForHarvest(growthProgress, stages.length);
+    }
+
+    /**
+     * Mirrors {@code FarmingUtil.tickFarming}: {@code growthProgress} is {@code stageIndex + fractionWithinStage}
+     * ({@code (int) currentProgress} is the stage index; fractional part is progress within that stage — see growth tick
+     * loop in Hytale {@code FarmingUtil}). Mature when the final stage has finished growing: either {@code growthProgress}
+     * reaches {@code stages.length} or the last stage index has fractional part near 1.0.
+     */
+    private static boolean isFarmingGrowthMatureForHarvest(float growthProgress, int stageCount) {
+        if (stageCount <= 0) {
+            return true;
+        }
+        int lastStageIndex = stageCount - 1;
+        int stage = (int) growthProgress;
+        float frac = growthProgress - stage;
+        if (stage >= stageCount) {
+            return true;
+        }
+        if (stage < lastStageIndex) {
+            return false;
+        }
+        return frac >= 0.99f || growthProgress >= (float) stageCount - 1e-3f;
+    }
+
+    /** Exposes maturity check for {@link DragonlingsDebugDump}. */
+    public static boolean isMatureHarvestableCropForDebug(
+            @Nonnull World world, int bx, int by, int bz, @Nonnull BlockType blockType) {
+        return isMatureHarvestableCrop(world, bx, by, bz, blockType);
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    public static boolean isFarmingGrowthMatureForDebug(float growthProgress, int stageCount) {
+        return isFarmingGrowthMatureForHarvest(growthProgress, stageCount);
+    }
+
+    @Nullable
+    public static Ref<ChunkStore> resolveFarmingBlockEntityRefPublic(
+            @Nonnull World world, int x, int y, int z) {
+        return resolveBlockEntityRefForFarming(world, x, y, z);
     }
 
     /**

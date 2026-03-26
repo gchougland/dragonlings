@@ -12,7 +12,7 @@ import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
-import com.hexvane.dragonlings.DragonlingData;
+import com.hexvane.dragonlings.DragonlingTamework;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -23,26 +23,21 @@ import javax.annotation.Nonnull;
  */
 public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntityStore> {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
-    static final double ATTACK_RANGE = 16.0;
+    public static final double ATTACK_RANGE = 16.0;
     private static final double ATTACK_COOLDOWN = 2.0; // Seconds between attacks
     static final double PROJECTILE_DAMAGE = 5.0;
     
     @Nonnull
     private final ComponentType<EntityStore, NPCEntity> npcComponentType;
     @Nonnull
-    private final ComponentType<EntityStore, DragonlingData> dragonlingDataType;
-    @Nonnull
     private final Query<EntityStore> query;
     
     // Track last attack time per dragonling
     private final Map<Ref<EntityStore>, Double> lastAttackTime = new HashMap<>();
     
-    public PurpleDragonlingCombatBehavior(
-            @Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType,
-            @Nonnull ComponentType<EntityStore, DragonlingData> dragonlingDataType) {
+    public PurpleDragonlingCombatBehavior(@Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType) {
         this.npcComponentType = npcComponentType;
-        this.dragonlingDataType = dragonlingDataType;
-        this.query = Query.and(npcComponentType, dragonlingDataType);
+        this.query = Query.and(npcComponentType);
     }
     
     @Override
@@ -54,18 +49,18 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
             @Nonnull CommandBuffer<EntityStore> commandBuffer) {
         
         NPCEntity npcComponent = archetypeChunk.getComponent(index, this.npcComponentType);
-        DragonlingData data = archetypeChunk.getComponent(index, this.dragonlingDataType);
         
-        if (npcComponent == null || data == null) {
+        if (npcComponent == null) {
             return;
         }
         
-        // Only process Purple dragonlings that are tamed (works whether leashed or not)
-        if (!npcComponent.getRoleName().contains("Purple") || !data.isTamed()) {
+        Ref<EntityStore> npcRef = archetypeChunk.getReferenceTo(index);
+        String roleName = npcComponent.getRoleName();
+        if (roleName == null || !roleName.contains("Purple") || !DragonlingTamework.isTamed(store, npcRef)) {
             return;
         }
         
-        UUID ownerUUID = data.getOwnerUUID();
+        UUID ownerUUID = DragonlingTamework.getOwnerId(store, npcRef);
         if (ownerUUID == null) {
             return;
         }
@@ -86,8 +81,6 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
         if (ownerPlayer == null) {
             return;
         }
-        
-        Ref<EntityStore> npcRef = archetypeChunk.getReferenceTo(index);
         
         // Check if we have a combat target from the listener
         Ref<EntityStore> combatTargetRef = com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener.getCombatTarget(npcRef);

@@ -1,0 +1,35 @@
+{
+  "Enabled": true,
+  "Priority": 10,
+  "RoleIds": [
+    "Dragonling_Red"
+  ],
+  "Interactions": [
+    {
+      "Type": "Tame",
+      "UseLovedItems": false,
+      "ItemsInHand": [
+        "Ingredient_Fire_Essence"
+      ],
+      "Requires": {
+        "All": {
+          "IsNotTamed": true
+        }
+      }
+    },
+    {
+      "Type": "Feed",
+      "UseLovedItems": false,
+      "Heal": 100,
+      "ItemsInHand": [
+        "Ingredient_Fire_Essence"
+      ],
+      "Requires": {
+        "All": {
+          "IsTamed": true,
+          "PlayerIsOwner": true
+        }
+      }
+    }
+  ]
+}

@@ -38,9 +38,6 @@
     },
     "ItemSoundSetId": "ISS_Items_Gems",
     "MaxStack": 100,
-    "Interactions": {
-        "Secondary": "DragonlingUseNPC"
-    },
     "DropOnDeath": true
   }
   

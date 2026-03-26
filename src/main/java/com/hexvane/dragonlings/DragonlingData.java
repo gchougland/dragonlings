@@ -11,9 +11,7 @@ import java.util.UUID;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-/**
- * Component to store dragonling-specific data like tamed state, owner, and leash information.
- */
+/** Per-entity AI state and leash data. Tame/owner live in Tamework; legacy fields migrate once. */
 public class DragonlingData implements Component<EntityStore> {
     private static ComponentType<EntityStore, DragonlingData> componentType;
     
@@ -52,6 +50,9 @@ public class DragonlingData implements Component<EntityStore> {
         .addField(new KeyedCodec<>("TargetPos", Vector3d.CODEC), 
             (data, pos) -> data.targetPosition = pos != null ? pos.clone() : null, 
             data -> data.targetPosition)
+        .addField(new KeyedCodec<>("TameNotifySent", Codec.BOOLEAN),
+            (data, v) -> data.tameNotifySent = v != null && v,
+            data -> data.tameNotifySent)
         .build();
     
     private boolean isTamed;
@@ -67,6 +68,8 @@ public class DragonlingData implements Component<EntityStore> {
     private DragonlingAIState aiState = DragonlingAIState.WANDER; // Current AI state
     @Nullable
     private Vector3d targetPosition; // Target position when in SEEK states
+    /** One-time chat after Tamework marks this NPC tamed (not legacy {@link #isTamed}). */
+    private boolean tameNotifySent;
     
     public static ComponentType<EntityStore, DragonlingData> getComponentType() {
         return componentType;
@@ -144,6 +147,14 @@ public class DragonlingData implements Component<EntityStore> {
     public void setTargetPosition(@Nullable Vector3d targetPosition) {
         this.targetPosition = targetPosition != null ? targetPosition.clone() : null;
     }
+
+    public boolean isTameNotifySent() {
+        return tameNotifySent;
+    }
+
+    public void setTameNotifySent(boolean tameNotifySent) {
+        this.tameNotifySent = tameNotifySent;
+    }
     
     @Nonnull
     @Override
@@ -157,6 +168,7 @@ public class DragonlingData implements Component<EntityStore> {
         cloned.leashRadius = this.leashRadius;
         cloned.aiState = this.aiState;
         cloned.targetPosition = this.targetPosition != null ? this.targetPosition.clone() : null;
+        cloned.tameNotifySent = this.tameNotifySent;
         return cloned;
     }
 }

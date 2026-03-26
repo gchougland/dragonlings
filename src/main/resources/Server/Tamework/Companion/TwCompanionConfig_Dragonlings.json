@@ -1,0 +1,43 @@
+{
+  "Enabled": true,
+  "Parent": "TwCompanionConfig_Default",
+  "Priority": 10,
+  "RoleIds": [
+    "Dragonling_Green",
+    "Dragonling_Blue",
+    "Dragonling_Red",
+    "Dragonling_Purple",
+    "Dragonling_TemplatePilot"
+  ],
+  "OwnershipProtection": {
+    "BlockOwnerDamage": false,
+    "BlockAllPlayerDamageIfOwned": false,
+    "InvulnerableIfOwned": false
+  },
+  "Command": {
+    "ReturnHomeTeleportDistance": 96.0,
+    "ReturnHomePathDistanceBeforeTeleport": 24.0,
+    "ReturnHomeTeleportDelayMs": 2500,
+    "RecallSafeSpawnDistance": 20.0,
+    "RecallForceRelocateDistance": 80.0,
+    "Travel": {
+      "CrossWorldRecallEnabled": true,
+      "OnTransferFailure": "QueueForRecall",
+      "FollowMasterOnWorldChange": true,
+      "FollowMasterOnWorldChangeStateFilter": [
+        "Follow",
+        "Defend",
+        "Aggressive"
+      ]
+    },
+    "DeadRespawnEnabled": true,
+    "DeadRespawnCooldownMins": 10,
+    "DeadRespawnFollowRetryDelayMs": 1250,
+    "DeadRespawnDistanceClose": 5.0,
+    "DeadRespawnDistanceNear": 8.0,
+    "DeadRespawnDistanceMid": 12.0,
+    "DeadRespawnDistanceFar": 16.0,
+    "PlacementMinRelativeY": -2.0,
+    "PlacementMaxRelativeY": 4.0
+  }
+}

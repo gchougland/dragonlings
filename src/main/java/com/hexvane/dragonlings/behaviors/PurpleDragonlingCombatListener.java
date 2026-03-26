@@ -20,7 +20,7 @@ import com.hypixel.hytale.server.core.modules.projectile.ProjectileModule;
 import com.hypixel.hytale.server.core.modules.projectile.config.ProjectileConfig;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
-import com.hexvane.dragonlings.DragonlingData;
+import com.hexvane.dragonlings.DragonlingTamework;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -36,8 +36,6 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
     @Nonnull
     private final ComponentType<EntityStore, NPCEntity> npcComponentType;
     @Nonnull
-    private final ComponentType<EntityStore, DragonlingData> dragonlingDataType;
-    @Nonnull
     private final Query<EntityStore> query;
     
     // Track last attack time per dragonling
@@ -46,11 +44,8 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
     // Static so both listener and behavior can access it
     private static final Map<Ref<EntityStore>, Ref<EntityStore>> combatTargets = new HashMap<>();
     
-    public PurpleDragonlingCombatListener(
-            @Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType,
-            @Nonnull ComponentType<EntityStore, DragonlingData> dragonlingDataType) {
+    public PurpleDragonlingCombatListener(@Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType) {
         this.npcComponentType = npcComponentType;
-        this.dragonlingDataType = dragonlingDataType;
         // Query for all entities that can take damage (have EntityStatMap)
         this.query = EntityStatMap.getComponentType();
     }
@@ -95,35 +90,35 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
             return; // Not an NPC, or already handled
         }
         
-        // Check if target is hostile to the attacker
-        // For now, assume all NPCs that aren't tamed by the attacker are hostile
-        DragonlingData targetData = store.getComponent(targetRef, DragonlingData.getComponentType());
-        if (targetData != null && targetData.isTamed() && attackerUUID.equals(targetData.getOwnerUUID())) {
-            return; // Target is tamed by attacker, don't assist
+        // Target tamed by attacker — do not assist
+        if (DragonlingTamework.isTamed(store, targetRef)) {
+            UUID targetOwner = DragonlingTamework.getOwnerId(store, targetRef);
+            if (attackerUUID.equals(targetOwner)) {
+                return;
+            }
         }
         
         // Find all Purple dragonlings owned by the attacker
-        Query<EntityStore> dragonlingQuery = Query.and(this.npcComponentType, this.dragonlingDataType);
+        Query<EntityStore> dragonlingQuery = Query.and(this.npcComponentType);
         double currentTime = System.currentTimeMillis() / 1000.0;
         
         store.forEachChunk(dragonlingQuery, (dragonlingChunk, chunkCommandBuffer) -> {
             for (int i = 0; i < dragonlingChunk.size(); i++) {
                 NPCEntity npcComponent = dragonlingChunk.getComponent(i, this.npcComponentType);
-                DragonlingData data = dragonlingChunk.getComponent(i, this.dragonlingDataType);
                 
-                if (npcComponent == null || data == null) {
+                if (npcComponent == null) {
                     continue;
-                }
-                
-                if (!npcComponent.getRoleName().contains("Purple") || !data.isTamed()) {
-                    continue;
-                }
-                
-                if (!attackerUUID.equals(data.getOwnerUUID())) {
-                    continue; // Not owned by attacker
                 }
                 
                 Ref<EntityStore> dragonlingRef = dragonlingChunk.getReferenceTo(i);
+                
+                if (!npcComponent.getRoleName().contains("Purple") || !DragonlingTamework.isTamed(store, dragonlingRef)) {
+                    continue;
+                }
+                
+                if (!attackerUUID.equals(DragonlingTamework.getOwnerId(store, dragonlingRef))) {
+                    continue;
+                }
                 
                 // Check cooldown
                 Double lastAttack = lastAttackTime.get(dragonlingRef);

@@ -8,6 +8,23 @@
     "Tools"
   ],
   "PlayerAnimationsId": "Item",
+  "Interactions": {
+    "Primary": {
+      "Interactions": [
+        {
+          "Type": "TameworkCommand"
+        }
+      ]
+    },
+    "Secondary": {
+      "Interactions": [
+        {
+          "Type": "TameworkCommand",
+          "CommandId": "OpenSelectionMenu"
+        }
+      ]
+    }
+  },
   "Tags": {
     "Type": [
       "Tool"
@@ -28,9 +45,6 @@
       0,
       -4
     ]
-  },
-  "Interactions": {
-    "Secondary": "DragonlingUseNPC"
   },
   "Recipe": {
     "Input": [

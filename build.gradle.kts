@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.hexvane"
-version = "1.0.1"
+version = "2.0.0"
 val javaVersion = 25
 
 repositories {
@@ -12,12 +12,21 @@ repositories {
     maven("https://maven.hytale-modding.info/releases") {
         name = "HytaleModdingReleases"
     }
+    // Alec's Tamework! JAR for compileOnly (matches https://www.curseforge.com/hytale/mods/alecs-tamework/files)
+    maven("https://cursemaven.com") {
+        name = "CurseMaven"
+    }
 }
+
+val tameworkCurseFileId: String =
+    findProperty("tamework_curse_file_id")?.toString() ?: "7788056"
 
 dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     compileOnly(libs.jetbrains.annotations)
     compileOnly(libs.jspecify)
+    // Compile against Alec's Tamework! — runtime requires the same mod in mods/. Coordinate: curse.maven:<slug>-<projectId>:<fileId>
+    compileOnly("curse.maven:alecs-tamework-1447962:$tameworkCurseFileId")
 }
 
 hytale {
@@ -28,7 +37,9 @@ hytale {
 
     // uncomment if you want to develop your mod against the pre-release version of the game.
     //
-    updateChannel = "pre-release"
+    //updateChannel = "pre-release"
+
+    // Dragonlings depends on Alec's Tamework!: copy the matching Tamework JAR from CurseForge into the server's mods folder next to this mod when using runServer.
 }
 
 java {
@@ -51,7 +62,9 @@ tasks.named<ProcessResources>("processResources") {
         "plugin_website" to findProperty("plugin_website"),
 
         "plugin_main_entrypoint" to findProperty("plugin_main_entrypoint"),
-        "plugin_author" to findProperty("plugin_author")
+        "plugin_author" to findProperty("plugin_author"),
+
+        "tamework_manifest_version" to findProperty("tamework_manifest_version")
     )
 
     filesMatching("manifest.json") {

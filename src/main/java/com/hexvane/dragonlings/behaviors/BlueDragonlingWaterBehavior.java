@@ -17,6 +17,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.DragonlingData;
+import com.hexvane.dragonlings.DragonlingTamework;
 import java.util.List;
 import javax.annotation.Nonnull;
 
@@ -25,7 +26,7 @@ import javax.annotation.Nonnull;
  */
 public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore> {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
-    private static final double WATER_RADIUS = 11.0;
+    public static final double WATER_RADIUS = 11.0;
     private static final double WATER_COOLDOWN = 3.0; // Seconds between watering attempts (animation is 60 ticks = 3 seconds, add buffer)
     // Note: Base role has StopDistance of 2.0, so NPC will stop within 2.0 blocks of target
     private static final double APPROACH_DISTANCE = 3.0; // Distance to trigger watering (allows blowing from further away)
@@ -39,10 +40,6 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
     
     // Track water cooldowns per dragonling
     private final java.util.Map<Ref<EntityStore>, Double> waterCooldowns = new java.util.HashMap<>();
-    
-    // Track last position and time for movement stability check
-    private final java.util.Map<Ref<EntityStore>, Vector3d> lastPositions = new java.util.HashMap<>();
-    private final java.util.Map<Ref<EntityStore>, Double> lastPositionTime = new java.util.HashMap<>();
     
     public BlueDragonlingWaterBehavior(
             @Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType,
@@ -61,23 +58,28 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
             @Nonnull CommandBuffer<EntityStore> commandBuffer) {
         
         NPCEntity npcComponent = archetypeChunk.getComponent(index, this.npcComponentType);
-        DragonlingData data = archetypeChunk.getComponent(index, this.dragonlingDataType);
+        Ref<EntityStore> npcRef = archetypeChunk.getReferenceTo(index);
+        DragonlingData data = commandBuffer.getComponent(npcRef, this.dragonlingDataType);
         
         if (npcComponent == null || data == null) {
             return;
         }
         
-        // Only process Blue dragonlings that are leashed
-        if (!npcComponent.getRoleName().contains("Blue") || !data.isLeashed()) {
+        if (!npcComponent.getRoleName().contains("Blue")) {
             return;
         }
-        
-        Vector3d leashPos = data.getLeashPosition();
+
+        try {
+        Vector3d leashPos = DragonlingTamework.getWorkAnchor(commandBuffer, npcRef);
         if (leashPos == null) {
             return;
         }
+        if (DragonlingTamework.isTamed(store, npcRef)
+            && DragonlingTamework.shouldPauseHomeAssignmentWork(npcComponent, commandBuffer, npcRef)) {
+            return;
+        }
         
-        TransformComponent transform = store.getComponent(archetypeChunk.getReferenceTo(index), TransformComponent.getComponentType());
+        TransformComponent transform = store.getComponent(npcRef, TransformComponent.getComponentType());
         if (transform == null) {
             return;
         }
@@ -86,9 +88,11 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
         if (world == null) {
             return;
         }
+
+        // Same clock as watering / entity tick — world entity store time can disagree and mark wet soil as "dry".
+        com.hypixel.hytale.server.core.modules.time.WorldTimeResource scanTimeResource =
+            commandBuffer.getResource(com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType());
         
-        // Track cooldown per dragonling
-        Ref<EntityStore> npcRef = archetypeChunk.getReferenceTo(index);
         double currentTime = System.currentTimeMillis() / 1000.0;
         Double lastWater = waterCooldowns.get(npcRef);
         
@@ -116,7 +120,6 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
         com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk centerChunk = 
             world.getChunkIfInMemory(com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(centerX, centerZ));
         if (centerChunk == null) {
-            // No chunk loaded, reset to WANDER state
             data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
             data.setTargetPosition(null);
             return;
@@ -149,72 +152,87 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                     continue; // Chunk not loaded, skip this block
                 }
                 
-                // Check blocks at different Y levels (farmland is typically on ground)
-                for (int dy = -2; dy <= 2; dy++) {
+                com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkStore =
+                    world.getChunkStore().getStore();
+                for (int dy = -radius; dy <= radius; dy++) {
                     int by = centerY + dy;
-                    
-                    // Check 2D distance (horizontal only, farmland is on ground)
-                    double distanceSq = horizontalDistSq;
+                    double distanceSq = horizontalDistSq + (long) dy * dy;
                     if (distanceSq > radiusSq) {
                         continue;
                     }
-                    
-                    // Use getBlock() - parameters are (x, y, z) where y is vertical, z is north/south
                     int blockId = blockChunk.getBlock(bx, by, bz);
                     if (blockId == 0) {
-                        continue; // Air or invalid block
+                        continue;
                     }
-                    
-                    com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType blockType = 
+                    com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType blockType =
                         com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType.getAssetMap().getAsset(blockId);
                     if (blockType == null) {
                         continue;
                     }
-                    
-                    // Check if it's farmland (checking for farming data)
-                    com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingData farmingData = 
+                    com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingData farmingData =
                         blockType.getFarming();
-                    if (farmingData == null) {
-                        continue;
-                    }
-                    
-                    // Check if farmland is already watered by checking TilledSoilBlock component
-                    // Use the same chunk we're already working with
-                    com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> checkBlockRef = 
+                    String blockTypeId = blockType.getId();
+                    boolean isTilledSoilType = blockTypeId != null
+                        && (blockTypeId.contains("Tilled") || blockTypeId.contains("Farmland"));
+
+                    com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> soilRef =
                         blockChunk.getBlockComponentEntity(bx, by, bz);
-                    if (checkBlockRef != null) {
-                        com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkStore = world.getChunkStore().getStore();
-                        com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock tilledSoil = 
-                            chunkStore.getComponent(checkBlockRef, com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock.getComponentType());
-                        if (tilledSoil != null) {
-                            // Check if farmland is currently watered
-                            // Get game time from world's entity store resource (same as we'll use when watering)
-                            com.hypixel.hytale.server.core.modules.time.WorldTimeResource worldTimeResource = 
-                                world.getEntityStore().getStore().getResource(
-                                    com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType());
-                            if (worldTimeResource != null) {
-                                java.time.Instant gameTime = worldTimeResource.getGameTime();
-                                java.time.Instant wateredUntil = tilledSoil.getWateredUntil();
-                                boolean isWatered = tilledSoil.hasExternalWater() || 
-                                    (wateredUntil != null && wateredUntil.isAfter(gameTime));
-                                if (isWatered) {
-                                    continue; // Already watered, skip this farmland
-                                }
-                            }
+                    com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock tilledSoil =
+                        soilRef != null
+                            ? chunkStore.getComponent(
+                                soilRef,
+                                com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock.getComponentType())
+                            : null;
+                    int waterX = bx;
+                    int waterY = by;
+                    int waterZ = bz;
+                    if (tilledSoil == null && farmingData != null && by > -60) {
+                        com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> belowRef =
+                            blockChunk.getBlockComponentEntity(bx, by - 1, bz);
+                        if (belowRef != null) {
+                            tilledSoil =
+                                chunkStore.getComponent(
+                                    belowRef,
+                                    com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock.getComponentType());
+                            waterX = bx;
+                            waterY = by - 1;
+                            waterZ = bz;
                         }
                     }
-                    
-                    // Calculate distance from NPC to this farmland
-                    Vector3d farmlandPos = new Vector3d(bx + 0.5, by + 1.0, bz + 0.5);
+                    if (tilledSoil == null && !isTilledSoilType) {
+                        continue;
+                    }
+                    // tilledSoil == null && isTilledSoilType → freshly tilled, never watered → definitely dry
+                    if (tilledSoil != null) {
+                        if (scanTimeResource != null) {
+                            java.time.Instant gameTime = scanTimeResource.getGameTime();
+                            java.time.Instant wateredUntil = tilledSoil.getWateredUntil();
+                            boolean isWatered =
+                                tilledSoil.hasExternalWater()
+                                    || (wateredUntil != null && wateredUntil.isAfter(gameTime));
+                            if (isWatered) {
+                                continue;
+                            }
+                        } else if (tilledSoil.hasExternalWater() || tilledSoil.getWateredUntil() != null) {
+                            continue;
+                        }
+                    }
+
+                    int waterBlockId = blockChunk.getBlock(waterX, waterY, waterZ);
+                    com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType waterBlockType =
+                        com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType.getAssetMap().getAsset(waterBlockId);
+                    if (waterBlockType == null) {
+                        continue;
+                    }
+
+                    Vector3d farmlandPos = new Vector3d(waterX + 0.5, waterY + 1.0, waterZ + 0.5);
                     double distance = npcPos.distanceTo(farmlandPos);
-                    
-                    // Track the nearest farmland that hasn't been recently watered
                     if (distance < bestDistance) {
                         bestDistance = distance;
-                        bestFarmlandX = bx;
-                        bestFarmlandY = by;
-                        bestFarmlandZ = bz;
-                        bestBlockType = blockType;
+                        bestFarmlandX = waterX;
+                        bestFarmlandY = waterY;
+                        bestFarmlandZ = waterZ;
+                        bestBlockType = waterBlockType;
                         bestChunk = blockChunk;
                     }
                 }
@@ -269,16 +287,18 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                     if (blockId != 0) {
                         com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType blockType = 
                             com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType.getAssetMap().getAsset(blockId);
-                        if (blockType != null && blockType.getFarming() != null) {
+                        String existingBlockTypeId = blockType != null ? blockType.getId() : null;
+                        boolean isSoilOrCrop = (blockType != null && blockType.getFarming() != null)
+                            || (existingBlockTypeId != null
+                                && (existingBlockTypeId.contains("Tilled") || existingBlockTypeId.contains("Farmland")));
+                        if (isSoilOrCrop) {
                             bestFarmlandX = targetX;
                             bestFarmlandY = targetY;
                             bestFarmlandZ = targetZ;
                             bestChunk = targetChunk;
                             bestBlockType = blockType;
                             bestDistance = distanceToTarget;
-                            // Fall through to watering logic below - skip scanning since we already have a target
                         } else {
-                            // Not farmland anymore, clear target
                             data.setTargetPosition(null);
                             data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
                             return;
@@ -355,35 +375,17 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                         boolean isWatered = checkSoil.hasExternalWater() || 
                             (wateredUntil != null && wateredUntil.isAfter(gameTime));
                         if (isWatered) {
-                            // Already watered, clear target and look for a new one
                             data.setTargetPosition(null);
                             data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
                             return;
                         }
-                    }
-                }
-            }
-            
-            // Check movement stability - don't water if moving too fast (bouncing around)
-            Vector3d lastPos = lastPositions.get(npcRef);
-            Double lastPosTime = lastPositionTime.get(npcRef);
-            if (lastPos != null && lastPosTime != null) {
-                double timeDelta = currentTime - lastPosTime;
-                if (timeDelta > 0.1) { // At least 0.1 seconds have passed
-                    double movementDistance = npcPos.distanceTo(lastPos);
-                    double speed = movementDistance / timeDelta;
-                    double maxSpeed = distanceToFarmland < 1.5 ? 1.5 : 0.8;
-                    if (speed > maxSpeed) {
-                        lastPositions.put(npcRef, npcPos.clone());
-                        lastPositionTime.put(npcRef, currentTime);
+                    } else if (checkSoil.hasExternalWater() || checkSoil.getWateredUntil() != null) {
+                        data.setTargetPosition(null);
+                        data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
                         return;
                     }
                 }
             }
-            
-            // Update position tracking
-            lastPositions.put(npcRef, npcPos.clone());
-            lastPositionTime.put(npcRef, currentTime);
             
             // Final check: Make absolutely sure the farmland is still dry before playing animation and watering
             // This prevents the animation from playing if farmland was just watered
@@ -403,42 +405,32 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                         boolean isWatered = finalCheckSoil.hasExternalWater() || 
                             (wateredUntil != null && wateredUntil.isAfter(gameTime));
                         if (isWatered) {
-                            // Already watered, clear target and return immediately (don't play animation)
                             data.setTargetPosition(null);
                             data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
                             return;
                         }
+                    } else if (finalCheckSoil.hasExternalWater() || finalCheckSoil.getWateredUntil() != null) {
+                        data.setTargetPosition(null);
+                        data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
+                        return;
                     }
                 }
             }
-            
-            // Play Blow animation BEFORE watering (same as red dragonling)
-            // Only play if we've confirmed the farmland is still dry
-            npcComponent.playAnimation(npcRef, 
-                com.hypixel.hytale.protocol.AnimationSlot.Action, 
-                "Blow", 
-                commandBuffer);
-            
+
             // Try to water the farmland (using same approach as UseWateringCanInteraction)
             try {
                 // Get or ensure block entity exists (using same approach as watering can)
-                com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> blockRef = 
+                com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> blockRef =
                     bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY, bestFarmlandZ);
-                if (blockRef == null) {
-                    try {
-                        blockRef = com.hypixel.hytale.server.core.modules.block.BlockModule.ensureBlockEntity(
-                            bestChunk, bestFarmlandX, bestFarmlandY, bestFarmlandZ);
-                    } catch (IllegalArgumentException e) {
-                        // Block entity was created by another thread, get it again
-                        blockRef = bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY, bestFarmlandZ);
-                    }
-                }
                 
                 if (blockRef != null) {
                     com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> chunkStore = 
                         world.getChunkStore().getStore();
                     com.hypixel.hytale.server.core.modules.time.WorldTimeResource worldTimeResource = 
                         commandBuffer.getResource(com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType());
+                    if (worldTimeResource == null) {
+                        return;
+                    }
                     
                     com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock soil = 
                         chunkStore.getComponent(blockRef, com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock.getComponentType());
@@ -448,21 +440,19 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                         chunkStore.addComponent(blockRef, com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock.getComponentType(), soil);
                     }
                     
-                    // Set watered until 60 REAL seconds from now
-                    // IMPORTANT: Hytale's game time advances much faster than real time
-                    // Based on logs: 8 real seconds ≈ 5.5 game minutes (330 game seconds)
-                    // So 1 real second ≈ 41 game seconds
-                    // For 60 real seconds, we need: 60 * 41 ≈ 2460 game seconds ≈ 41 game minutes
-                    // Using 2400 game seconds (40 minutes) to be safe
                     java.time.Instant gameTime = worldTimeResource.getGameTime();
                     java.time.Instant wateredUntil = gameTime.plus(2400, java.time.temporal.ChronoUnit.SECONDS);
                     
                     // Set the watered until time on the component
                     soil.setWateredUntil(wateredUntil);
-                    
-                    // Enable ticking and schedule tick (required for the watered state to persist)
-                    // Using same methods as UseWateringCanInteraction (deprecated but still the standard way)
-                    // scheduleTick schedules a block update at the specified time (when it should check if it needs to dry)
+
+                    npcComponent.playAnimation(
+                        npcRef,
+                        com.hypixel.hytale.protocol.AnimationSlot.Action,
+                        "Blow",
+                        commandBuffer);
+
+                    // Match watering-can: tick + schedule so soil state persists
                     bestChunk.setTicking(bestFarmlandX, bestFarmlandY, bestFarmlandZ, true);
                     bestChunk.getBlockChunk().getSectionAtBlockY(bestFarmlandY).scheduleTick(
                         com.hypixel.hytale.math.util.ChunkUtil.indexBlock(bestFarmlandX, bestFarmlandY, bestFarmlandZ), 
@@ -541,34 +531,18 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                         world.getChunkStore().getStore();
                     com.hypixel.hytale.server.core.modules.time.WorldTimeResource worldTimeResource = 
                         commandBuffer.getResource(com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType());
-                    
-                    // Try to get block entity again after ensuring it
-                    blockRef = bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY, bestFarmlandZ);
-                    if (blockRef == null) {
-                        try {
-                            blockRef = com.hypixel.hytale.server.core.modules.block.BlockModule.ensureBlockEntity(
-                                bestChunk, bestFarmlandX, bestFarmlandY, bestFarmlandZ);
-                        } catch (IllegalArgumentException e) {
-                            // Block entity was created by another thread, get it again
-                            blockRef = bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY, bestFarmlandZ);
-                        }
+                    if (worldTimeResource == null) {
+                        return;
                     }
+                    
+                    blockRef = bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY, bestFarmlandZ);
                     if (blockRef != null) {
                         com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock farmingState = 
                             chunkStore.getComponent(blockRef, com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock.getComponentType());
                         if (farmingState != null) {
                             // Water the soil block below
-                            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> soilRef = 
+                            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> soilRef =
                                 bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY - 1, bestFarmlandZ);
-                            if (soilRef == null) {
-                                try {
-                                    soilRef = com.hypixel.hytale.server.core.modules.block.BlockModule.ensureBlockEntity(
-                                        bestChunk, bestFarmlandX, bestFarmlandY - 1, bestFarmlandZ);
-                                } catch (IllegalArgumentException e) {
-                                    // Block entity was created by another thread, get it again
-                                    soilRef = bestChunk.getBlockComponentEntity(bestFarmlandX, bestFarmlandY - 1, bestFarmlandZ);
-                                }
-                            }
                             if (soilRef != null) {
                                 com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock soil = 
                                     chunkStore.getComponent(soilRef, com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock.getComponentType());
@@ -578,12 +552,16 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                                     chunkStore.addComponent(soilRef, com.hypixel.hytale.builtin.adventure.farming.states.TilledSoilBlock.getComponentType(), soil);
                                 }
                                 
-                                // Set watered until 60 REAL seconds from now (same calculation as direct farmland watering above)
-                                // Hytale's game time advances much faster than real time, so use 2400 game seconds
                                 java.time.Instant gameTime = worldTimeResource.getGameTime();
                                 java.time.Instant wateredUntil = gameTime.plus(2400, java.time.temporal.ChronoUnit.SECONDS);
                                 soil.setWateredUntil(wateredUntil);
-                                
+
+                                npcComponent.playAnimation(
+                                    npcRef,
+                                    com.hypixel.hytale.protocol.AnimationSlot.Action,
+                                    "Blow",
+                                    commandBuffer);
+
                                 // Using same methods as UseWateringCanInteraction (deprecated but still the standard way)
                                 bestChunk.getBlockChunk().getSectionAtBlockY(bestFarmlandY - 1).scheduleTick(
                                     com.hypixel.hytale.math.util.ChunkUtil.indexBlock(bestFarmlandX, bestFarmlandY - 1, bestFarmlandZ), 
@@ -650,75 +628,13 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                         }
                     }
                 }
-                
-                // Play Blow animation (only if we successfully watered)
-                npcComponent.playAnimation(npcRef, 
-                    com.hypixel.hytale.protocol.AnimationSlot.Action, 
-                    "Blow", 
-                    commandBuffer);
-                
-                // Spawn water particles from the dragonling's mouth/snout
-                // Calculate mouth position based on NPC position and rotation
-                TransformComponent npcTransform = store.getComponent(npcRef, TransformComponent.getComponentType());
-                Vector3d mouthPos;
-                Vector3f particleRotation = null;
-                
-                if (npcTransform != null) {
-                    Vector3d npcWorldPos = npcTransform.getPosition();
-                    Vector3f npcRotation = npcTransform.getRotation();
-                    particleRotation = npcRotation; // Store rotation for particle spawn
-                    
-                    // Use slightly below eye height for mouth position (snout level)
-                    double headYOffset = 0.45; // Slightly below eye height (0.8) for snout/mouth level
-                    double mouthForwardOffset = 0.5; // Forward offset for mouth position (in front of head)
-                    
-                    // Calculate forward direction from yaw rotation
-                    // Invert direction since yaw might be 180 degrees off (based on earlier rotation fixes)
-                    float yaw = npcRotation.getYaw();
-                    double forwardX = -Math.sin(yaw) * mouthForwardOffset;
-                    double forwardZ = -Math.cos(yaw) * mouthForwardOffset;
-                    
-                    // Calculate mouth position: NPC position + eye height + forward direction
-                    mouthPos = npcWorldPos.clone();
-                    mouthPos.y += headYOffset;
-                    mouthPos.x += forwardX;
-                    mouthPos.z += forwardZ;
-                } else {
-                    // Fallback: spawn at NPC position + snout height if transform unavailable
-                    mouthPos = npcPos.clone();
-                    mouthPos.y += 0.45; // Snout/mouth level
-                }
-                
-                // Spawn particle effect at mouth position
-                // Collect nearby players so they can see the particles
-                SpatialResource<Ref<EntityStore>, EntityStore> playerSpatialResource = 
-                    commandBuffer.getResource(EntityModule.get().getPlayerSpatialResourceType());
-                List<Ref<EntityStore>> playerRefs = SpatialResource.getThreadLocalReferenceList();
-                playerSpatialResource.getSpatialStructure().collect(mouthPos, 75.0, playerRefs);
-                
-                // The particle spawner has a narrow velocity cone (-10 to 10 degrees Yaw/Pitch)
-                // Pass the NPC's rotation so particles spawn in the direction the dragonling is facing
-                if (particleRotation != null) {
-                    com.hypixel.hytale.server.core.universe.world.ParticleUtil.spawnParticleEffect(
-                        "Dragonling_Blue_Water",
-                        mouthPos,
-                        particleRotation,
-                        playerRefs,
-                        commandBuffer
-                    );
-                } else {
-                    // Fallback: spawn without rotation if unavailable
-                    com.hypixel.hytale.server.core.universe.world.ParticleUtil.spawnParticleEffect(
-                        "Dragonling_Blue_Water",
-                        mouthPos,
-                        playerRefs,
-                        commandBuffer
-                    );
-                }
             } catch (Exception e) {
                 LOGGER.atWarning().withCause(e).log("[BlueWater] Failed to water farmland at (%d, %d, %d)", 
                     bestFarmlandX, bestFarmlandY, bestFarmlandZ);
             }
+        }
+        } finally {
+            commandBuffer.putComponent(npcRef, this.dragonlingDataType, data);
         }
     }
     

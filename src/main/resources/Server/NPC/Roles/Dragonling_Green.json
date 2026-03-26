@@ -23,6 +23,10 @@
     "NameTranslationKey": {
       "Value": "server.npcRoles.Dragonling_Green.name",
       "Description": "Translation key for NPC name display"
+    },
+    "InteractionConfigId": {
+      "Value": "TwInteractionConfig_Dragonling_Green",
+      "Description": "Tamework TwInteractionConfig: Life essence only for this role"
     }
   }
 }

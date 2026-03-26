@@ -1,0 +1,23 @@
+{
+  "$Comment": "Experimental: Tamework Template_Tamework_Example_Simple (state machine + Follow_Simple_TP). Not used by world spawns — spawn manually to compare with Dragonling_Base + DragonlingAISystem. StartState Hold: wild behavior differs from Generic dragonling roles.",
+  "Type": "Variant",
+  "Reference": "Template_Tamework_Example_Simple",
+  "Modify": {
+    "Appearance": "Dragonling_Green",
+    "MaxHealth": 50,
+    "MaxSpeed": 6,
+    "NameTranslationKey": {
+      "Compute": "NameTranslationKey"
+    }
+  },
+  "Parameters": {
+    "NameTranslationKey": {
+      "Value": "server.npcRoles.Dragonling_TemplatePilot.name",
+      "Description": "Translation key for NPC name display"
+    },
+    "InteractionConfigId": {
+      "Value": "TwInteractionConfig_Dragonling_Green",
+      "Description": "Same tame rules as Dragonling_Green (Life essence)"
+    }
+  }
+}
