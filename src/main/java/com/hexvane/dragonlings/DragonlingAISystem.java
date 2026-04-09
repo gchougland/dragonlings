@@ -161,10 +161,15 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
                 lastHomeAnchors.put(npcRef, tameworkHome.clone());
             }
 
+            // Clear mod seek when not on Tamework Follow — otherwise passive follow (handleFollowing) leaves a stale
+            // seek target and Idle / Return Home still chase the owner.
+            if (!DragonlingTamework.shouldDriveOwnerFollowWithSeekBridge(npcComponent)) {
+                MarkedEntitySeekBridge.clearSeekPosition(role);
+            }
+
             // Transition from mod-driven follow to idle-at-home (home takes priority
             // over the mod's passive follow; Tamework's Follow command is separate).
             if (aiState == DragonlingAIState.FOLLOW_OWNER) {
-                MarkedEntitySeekBridge.clearSeekPosition(role);
                 data.setAIState(DragonlingAIState.WANDER);
             }
 

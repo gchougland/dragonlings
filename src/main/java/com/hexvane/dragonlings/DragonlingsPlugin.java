@@ -7,14 +7,19 @@ import com.hypixel.hytale.server.core.command.system.CommandRegistry;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.core.util.Config;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.behaviors.BlueDragonlingWaterBehavior;
 import com.hexvane.dragonlings.behaviors.GreenDragonlingHarvestBehavior;
 import com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatBehavior;
 import com.hexvane.dragonlings.behaviors.RedDragonlingFurnaceBehavior;
-
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.function.DoubleSupplier;
 public class DragonlingsPlugin extends JavaPlugin {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+    private final Config<DragonlingsTameCapConfig> tameCapConfig = this.withConfig(DragonlingsTameCapConfig.CODEC);
+    private final DragonlingsTameCountStore tameCountStore = new DragonlingsTameCountStore(this.getDataDirectory());
     private ComponentType<EntityStore, DragonlingData> dragonlingDataType;
 
     public DragonlingsPlugin(JavaPluginInit init) {
@@ -36,6 +41,12 @@ public class DragonlingsPlugin extends JavaPlugin {
 
     @Override
     protected void start() {
+        this.ensureDefaultTameCapConfigOnDisk();
+        this.tameCountStore.load();
+        PurpleDragonlingVoidProjectile.init(this);
+        PurpleDragonlingVoidProjectile.warmup(
+            LOGGER, this.tameCapConfig.get().getPurpleVoidProjectilePhysicalDamage());
+
         ComponentRegistryProxy<EntityStore> entityStoreRegistry = this.getEntityStoreRegistry();
         ComponentType<EntityStore, NPCEntity> npcComponentType = NPCEntity.getComponentType();
 
@@ -50,17 +61,43 @@ public class DragonlingsPlugin extends JavaPlugin {
         entityStoreRegistry.registerSystem(new GreenDragonlingHarvestBehavior(npcComponentType, this.dragonlingDataType));
         entityStoreRegistry.registerSystem(new BlueDragonlingWaterBehavior(npcComponentType, this.dragonlingDataType));
         entityStoreRegistry.registerSystem(new RedDragonlingFurnaceBehavior(npcComponentType, this.dragonlingDataType));
-        entityStoreRegistry.registerSystem(new PurpleDragonlingCombatBehavior(npcComponentType));
-        entityStoreRegistry.registerSystem(new com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener(npcComponentType));
+        DoubleSupplier purpleVoidProjectileDamage =
+            () -> this.tameCapConfig.get().getPurpleVoidProjectilePhysicalDamage();
+        entityStoreRegistry.registerSystem(new PurpleDragonlingCombatBehavior(npcComponentType, purpleVoidProjectileDamage));
+        entityStoreRegistry.registerSystem(
+            new com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener(npcComponentType, purpleVoidProjectileDamage));
         entityStoreRegistry.registerSystem(new DragonlingAISystem(npcComponentType, this.dragonlingDataType));
+        entityStoreRegistry.registerSystem(new DragonlingsTameCountDeathSystem(npcComponentType, this.tameCountStore));
 
         CommandRegistry commandRegistry = this.getCommandRegistry();
-        commandRegistry.registerCommand(new DragonlingsCommand(this.dragonlingDataType));
+        commandRegistry.registerCommand(
+            new DragonlingsCommand(this.dragonlingDataType, this.tameCapConfig, this.tameCountStore));
+
+        DragonlingsTameworkTameCapRegistrar.register(
+            LOGGER, () -> this.tameCapConfig.get(), this.tameCountStore);
 
         LOGGER.atInfo().log("Dragonlings plugin systems registered");
     }
 
     public ComponentType<EntityStore, DragonlingData> getDragonlingDataType() {
         return this.dragonlingDataType;
+    }
+
+    /**
+     * {@link Config#load()} applies defaults when {@code config.json} is missing but does not create the file. Write it
+     * so operators can edit caps without creating the path by hand.
+     */
+    private void ensureDefaultTameCapConfigOnDisk() {
+        Path path = this.getDataDirectory().resolve("config.json");
+        if (Files.exists(path)) {
+            return;
+        }
+        try {
+            this.tameCapConfig.get();
+            this.tameCapConfig.save().join();
+            LOGGER.atInfo().log("Wrote default tame cap config to %s", path);
+        } catch (Exception e) {
+            LOGGER.atWarning().withCause(e).log("Could not write default config.json to %s", path);
+        }
     }
 }

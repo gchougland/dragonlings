@@ -132,7 +132,7 @@ public final class DragonlingsDebugDump {
                     anchor.y,
                     anchor.z));
         } else {
-            out.append("Tamework home: null (no StoreHome)\n");
+            out.append("Tamework home: null (no home in command-links)\n");
         }
 
         String state = DragonlingTamework.getNpcRoleStateName(npc);

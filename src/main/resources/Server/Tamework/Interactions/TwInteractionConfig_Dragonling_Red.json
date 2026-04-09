@@ -13,8 +13,20 @@
       ],
       "Requires": {
         "All": {
-          "IsNotTamed": true
+          "IsNotTamed": true,
+          "Custom": [
+            {
+              "Id": "dragonlings_tame_cap"
+            }
+          ]
         }
+      },
+      "Effects": {
+        "Custom": [
+          {
+            "Id": "dragonlings_tame_cap_record"
+          }
+        ]
       }
     },
     {

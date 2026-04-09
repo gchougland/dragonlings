@@ -20,7 +20,7 @@ final class DragonlingsDebugDumpCommand extends AbstractPlayerCommand {
     private final ComponentType<EntityStore, DragonlingData> dragonlingDataType;
 
     DragonlingsDebugDumpCommand(@Nonnull ComponentType<EntityStore, DragonlingData> dragonlingDataType) {
-        super("debug_dump", "dragonlings.command.debug_dump.desc");
+        super("debug_dump", "server.dragonlings.command.debug_dump.desc");
         this.requirePermission(HytalePermissions.fromCommand("dragonlings", "debug_dump"));
         this.dragonlingDataType = dragonlingDataType;
     }

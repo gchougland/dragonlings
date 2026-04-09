@@ -21,9 +21,11 @@ import com.hypixel.hytale.server.core.modules.projectile.config.ProjectileConfig
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.DragonlingTamework;
+import com.hexvane.dragonlings.PurpleDragonlingVoidProjectile;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.DoubleSupplier;
 import javax.annotation.Nonnull;
 
 /**
@@ -36,6 +38,8 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
     @Nonnull
     private final ComponentType<EntityStore, NPCEntity> npcComponentType;
     @Nonnull
+    private final DoubleSupplier purpleVoidProjectilePhysicalDamage;
+    @Nonnull
     private final Query<EntityStore> query;
     
     // Track last attack time per dragonling
@@ -44,8 +48,11 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
     // Static so both listener and behavior can access it
     private static final Map<Ref<EntityStore>, Ref<EntityStore>> combatTargets = new HashMap<>();
     
-    public PurpleDragonlingCombatListener(@Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType) {
+    public PurpleDragonlingCombatListener(
+            @Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType,
+            @Nonnull DoubleSupplier purpleVoidProjectilePhysicalDamage) {
         this.npcComponentType = npcComponentType;
+        this.purpleVoidProjectilePhysicalDamage = purpleVoidProjectilePhysicalDamage;
         // Query for all entities that can take damage (have EntityStatMap)
         this.query = EntityStatMap.getComponentType();
     }
@@ -193,9 +200,9 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                 
                 // Spawn actual projectile (particles will follow it via Trail in projectile config)
                 try {
-                    ProjectileConfig projectileConfig = 
-                        ProjectileConfig.getAssetMap().getAsset("Dragonling_Void_Projectile");
-                    
+                    double physicalDamage = this.purpleVoidProjectilePhysicalDamage.getAsDouble();
+                    ProjectileConfig projectileConfig = PurpleDragonlingVoidProjectile.resolve(LOGGER, physicalDamage);
+
                     if (projectileConfig != null) {
                         // Spawn the projectile
                         // spawnProjectile takes position and ADDS SpawnOffset to it (rotated by pitch/yaw)
@@ -216,11 +223,11 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                         }
                         
                         if (causeIndex != Integer.MIN_VALUE) {
-                            Damage projectileDamage = new Damage(
-                                new Damage.ProjectileSource(dragonlingRef, dragonlingRef),
-                                causeIndex,
-                                (float) PurpleDragonlingCombatBehavior.PROJECTILE_DAMAGE
-                            );
+                            Damage projectileDamage =
+                                new Damage(
+                                    new Damage.ProjectileSource(dragonlingRef, dragonlingRef),
+                                    causeIndex,
+                                    (float) physicalDamage);
                             DamageSystems.executeDamage(targetRef, commandBuffer, projectileDamage);
                         }
                     }

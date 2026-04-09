@@ -13,9 +13,11 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.DragonlingTamework;
+import com.hexvane.dragonlings.PurpleDragonlingVoidProjectile;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.DoubleSupplier;
 import javax.annotation.Nonnull;
 
 /**
@@ -25,18 +27,22 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     public static final double ATTACK_RANGE = 16.0;
     private static final double ATTACK_COOLDOWN = 2.0; // Seconds between attacks
-    static final double PROJECTILE_DAMAGE = 5.0;
-    
+
     @Nonnull
     private final ComponentType<EntityStore, NPCEntity> npcComponentType;
+    @Nonnull
+    private final DoubleSupplier purpleVoidProjectilePhysicalDamage;
     @Nonnull
     private final Query<EntityStore> query;
     
     // Track last attack time per dragonling
     private final Map<Ref<EntityStore>, Double> lastAttackTime = new HashMap<>();
     
-    public PurpleDragonlingCombatBehavior(@Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType) {
+    public PurpleDragonlingCombatBehavior(
+            @Nonnull ComponentType<EntityStore, NPCEntity> npcComponentType,
+            @Nonnull DoubleSupplier purpleVoidProjectilePhysicalDamage) {
         this.npcComponentType = npcComponentType;
+        this.purpleVoidProjectilePhysicalDamage = purpleVoidProjectilePhysicalDamage;
         this.query = Query.and(npcComponentType);
     }
     
@@ -187,9 +193,10 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
         
         // Spawn projectile
         try {
-            com.hypixel.hytale.server.core.modules.projectile.config.ProjectileConfig projectileConfig = 
-                com.hypixel.hytale.server.core.modules.projectile.config.ProjectileConfig.getAssetMap().getAsset("Dragonling_Void_Projectile");
-            
+            double physicalDamage = this.purpleVoidProjectilePhysicalDamage.getAsDouble();
+            com.hypixel.hytale.server.core.modules.projectile.config.ProjectileConfig projectileConfig =
+                PurpleDragonlingVoidProjectile.resolve(LOGGER, physicalDamage);
+
             if (projectileConfig != null) {
                 // spawnProjectile takes position and ADDS SpawnOffset to it (rotated by pitch/yaw)
                 // SpawnOffset is now 0,0,0, so we pass the exact mouth position

@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.1] - 2026-04-08
+
+### Added
+
+- **`/dragonlings give <player> <type>`** — Spawns a tamed dragonling in front of the target player, applies Tamework tame/owner, and links it to the **Dragon Whistle** when Tamework is present (permission `dragonlings.give`). Accepts short names (`green`, `blue`, `red`, `purple`), aliases, full role ids (e.g. `Dragonling_Green`), or other registered NPC role names.
+- **Per-variant tame limits** — Configurable maximum tamed dragonlings **per color per player** (defaults: **4** each for green, blue, red, purple, and template pilot). Natural taming and `/dragonlings give` both enforce the cap; a translated message is shown when the cap is reached.
+- **Persisted tame accounting** — Counts are stored in **`tame_counts.json`** under the plugin data folder: incremented when a tame completes (Tamework **Custom** effect after tame, or after a successful give), and decremented when a tamed dragonling **dies** (`DeathComponent`), so limits stay correct regardless of chunk load.
+- **Tamework hooks** — `TwInteractionConfig` **Tame** entries use custom requirement **`dragonlings_tame_cap`** (pre-tame check against stored counts) and custom effect **`dragonlings_tame_cap_record`** (post-tame increment), registered via reflection so the mod still loads without Tamework on the classpath.
+
+### Changed
+
+- **Tame cap configuration** — **`config.json`** in the plugin data directory exposes **`MaxGreen`**, **`MaxBlue`**, **`MaxRed`**, **`MaxPurple`**, and **`MaxTemplatePilot`** (integers, default `4`). If **`config.json` is missing**, defaults are applied and the file is **written on first start** so it can be edited directly.
+- **Purple dragonling void projectile damage** — **`PurpleVoidProjectilePhysicalDamage`** in **`config.json`** sets absolute **physical** hit damage for the purple variant’s void orb (default **`20.0`**, minimum **`0`**). When this differs from the default, a patched copy is written under **`generated/Server/ProjectileConfigs/`** in the plugin data folder and registered as a separate projectile asset. **Restart the server** after changing this value so it can be preloaded.
+
+### Fixed
+
+- **Purple combat / world freeze** — Patched projectile assets are no longer loaded via **`AssetStore.loadAssetsFromPaths`** during combat or damage handling on the world tick thread (that path takes an asset-store write lock and could deadlock the **TickingThread**). The mod now **warms up** the configured void projectile once in **`JavaPlugin.start()`**; combat code only **looks up** the preloaded config.
+
+## [2.0.1] - 2026-03-28
+
+### Changed
+
+- **Tamework home position** — Set Home / work anchor is resolved through Tamework’s command-links API (`getApi().commandLinks().getByNpcUuid` → `homePosition`), using reflective calls so the mod still compiles against the Curse `compileOnly` JAR. If the registry has no entry yet, **`TameworkCommandLinks`** on the NPC is used as a fallback (with **CommandBuffer**-first reads when ticking so pending ECS updates are visible).
+
+### Fixed
+
+- **Idle / Return Home** — With a home set, dragonlings no longer keep using the mod’s passive follow seek toward the owner. **`MarkedEntitySeekBridge`** is cleared each tick while at home unless Tamework is in **Follow**, so stale seek targets from the “no home detected” path no longer override Idle or Return Home.
+
 ## [2.0.0] - 2026-03-26
 
 ### Requirements
