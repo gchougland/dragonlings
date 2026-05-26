@@ -7,10 +7,11 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
-import com.hypixel.hytale.math.vector.Vector3d;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
@@ -85,9 +86,9 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
             if (tameOwner != null) {
                 Ref<EntityStore> ownerRef = findPlayerByUUID(store, tameOwner);
                 if (ownerRef != null && ownerRef.isValid()) {
-                    Player ownerPlayer = store.getComponent(ownerRef, Player.getComponentType());
-                    if (ownerPlayer != null && roleName != null) {
-                        ownerPlayer.sendMessage(
+                    PlayerRef ownerPlayerRef = store.getComponent(ownerRef, PlayerRef.getComponentType());
+                    if (ownerPlayerRef != null && roleName != null) {
+                        ownerPlayerRef.sendMessage(
                             Message.translation("server.dragonlings.tame.success")
                                 .param("dragonling", Message.translation("server.npcRoles." + roleName + ".name")));
                     }
@@ -156,9 +157,9 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
             // WanderInCircle uses the correct anchor.  Do NOT re-set it every tick —
             // that prevents Tamework Follow/Recall from moving the NPC away from home.
             Vector3d lastAnchor = lastHomeAnchors.get(npcRef);
-            if (lastAnchor == null || lastAnchor.distanceTo(tameworkHome) > 0.1) {
+            if (lastAnchor == null || lastAnchor.distance(tameworkHome) > 0.1) {
                 npcComponent.setLeashPoint(tameworkHome);
-                lastHomeAnchors.put(npcRef, tameworkHome.clone());
+                lastHomeAnchors.put(npcRef, new Vector3d(tameworkHome));
             }
 
             // Clear mod seek when not on Tamework Follow — otherwise passive follow (handleFollowing) leaves a stale
@@ -211,7 +212,7 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
         
         Vector3d ownerPos = ownerTransform.getPosition();
         Vector3d npcPos = npcTransform.getPosition();
-        double distance = npcPos.distanceTo(ownerPos);
+        double distance = npcPos.distance(ownerPos);
 
         // Near owner: aim Seek at self so Seek+StopDistance does not fight (reduces idle orbiting).
         final double holdFollowDistance = 3.0;
@@ -231,7 +232,7 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
 
         // Teleport if too far
         if (distance > DragonlingAISystem.TELEPORT_DISTANCE) {
-            Vector3d teleportPos = followTargetPos.clone();
+            Vector3d teleportPos = new Vector3d(followTargetPos);
             // Add random offset in X and Z, but keep Y at owner's level
             // Add small Y offset to ensure NPC doesn't spawn inside ground
             teleportPos.add(

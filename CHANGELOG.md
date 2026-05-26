@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.1] - 2026-05-26
+
+### Requirements
+
+- **Hytale** `^0.5.0` (stable 0.5.0; manifest uses Semver range instead of legacy dated `ServerVersion`)
+- **Alec's Tamework!** `>=2.11.2` — use [CurseForge file 8149204](https://www.curseforge.com/hytale/mods/alecs-tamework/files/8149204) (v2.11.2) in the server `mods/` folder alongside Dragonlings
+
+### Changed
+
+- **Build / manifest** — `server_version` is `^0.5.0`; Tamework compile dependency pinned to Curse file **8149204**
+- **0.5 API migration** — positions use `org.joml.Vector3d` / `Vector3i`; rotations use `Rotation3f`; `Vector3dUtil` for codecs and seek clear sentinel; player chat via `PlayerRef#sendMessage`
+
 ## [2.1.1] - 2026-04-08
 
 ### Added

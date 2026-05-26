@@ -24,7 +24,7 @@ public final class DragonlingsTameworkTameCapRegistrar {
             @Nonnull Supplier<DragonlingsTameCapConfig> configSupplier,
             @Nonnull DragonlingsTameCountStore tameCountStore) {
         try {
-            Class<?> tameworkClass = Class.forName("com.alechilles.alecstamework.Tamework");
+            Class<?> tameworkClass = DragonlingsTameworkReflection.loadTameworkClass(DragonlingsTameworkReflection.CLASS_TAMEWORK);
             Object tamework = tameworkClass.getMethod("getInstance").invoke(null);
             if (tamework == null) {
                 logger.atWarning().log("Tamework getInstance() is null; tame cap hooks not registered");
@@ -42,9 +42,11 @@ public final class DragonlingsTameworkTameCapRegistrar {
             }
             ClassLoader cl = tameworkClass.getClassLoader();
             Class<?> requirementHandlerClass =
-                Class.forName("com.alechilles.alecstamework.api.InteractionRequirementHandler", false, cl);
+                DragonlingsTameworkReflection.loadTameworkClass(
+                    "com.alechilles.alecstamework.api.InteractionRequirementHandler");
             Class<?> effectHandlerClass =
-                Class.forName("com.alechilles.alecstamework.api.InteractionEffectHandler", false, cl);
+                DragonlingsTameworkReflection.loadTameworkClass(
+                    "com.alechilles.alecstamework.api.InteractionEffectHandler");
 
             Object requirementProxy =
                 Proxy.newProxyInstance(
@@ -66,8 +68,13 @@ public final class DragonlingsTameworkTameCapRegistrar {
                 REQUIREMENT_ID,
                 EFFECT_RECORD_ID);
         } catch (ClassNotFoundException e) {
-            logger.atInfo().log(
-                "Tamework not present; use persisted counts for /dragonlings give only (no interaction hooks)");
+            if (DragonlingsTameworkReflection.isTameworkPluginLoaded()) {
+                logger.atWarning().withCause(e).log(
+                    "Tamework is loaded but tame-cap hooks could not be registered; essence taming will not work");
+            } else {
+                logger.atInfo().log(
+                    "Tamework not present; use persisted counts for /dragonlings give only (no interaction hooks)");
+            }
         } catch (Throwable t) {
             logger.atWarning().withCause(t).log("Could not register Tamework tame cap hooks");
         }
@@ -85,7 +92,10 @@ public final class DragonlingsTameworkTameCapRegistrar {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (args == null || args.length < 2) {
+            if (method.getDeclaringClass() == Object.class) {
+                return invokeObjectMethod(proxy, method, args);
+            }
+            if (!"test".equals(method.getName()) || args == null || args.length < 2) {
                 return Boolean.FALSE;
             }
             Object context = args[0];
@@ -123,7 +133,10 @@ public final class DragonlingsTameworkTameCapRegistrar {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (args == null || args.length < 2) {
+            if (method.getDeclaringClass() == Object.class) {
+                return invokeObjectMethod(proxy, method, args);
+            }
+            if (!"apply".equals(method.getName()) || args == null || args.length < 2) {
                 return Boolean.TRUE;
             }
             Object context = args[0];
@@ -141,5 +154,14 @@ public final class DragonlingsTameworkTameCapRegistrar {
             }
             return Boolean.TRUE;
         }
+    }
+
+    private static Object invokeObjectMethod(Object proxy, Method method, Object[] args) {
+        return switch (method.getName()) {
+            case "hashCode" -> System.identityHashCode(proxy);
+            case "equals" -> proxy == (args != null && args.length == 1 ? args[0] : null);
+            case "toString" -> proxy.getClass().getInterfaces()[0].getSimpleName() + "Proxy";
+            default -> null;
+        };
     }
 }

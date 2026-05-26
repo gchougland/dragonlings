@@ -10,8 +10,8 @@ import com.hypixel.hytale.builtin.crafting.component.ProcessingBenchBlock;
 import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.math.vector.Vector3d;
-import com.hypixel.hytale.math.vector.Vector3f;
+import com.hypixel.hytale.math.vector.Rotation3f;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.core.modules.block.BlockModule;
 import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
@@ -181,7 +181,7 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
                     
                     // Calculate distance from NPC to this furnace
                     Vector3d furnacePos = new Vector3d(bx + 0.5, by + 0.5, bz + 0.5);
-                    double distance = npcPos.distanceTo(furnacePos);
+                    double distance = npcPos.distance(furnacePos);
                     
                     // Track the nearest active furnace
                     if (distance < bestDistance) {
@@ -211,11 +211,11 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
         Vector3d furnacePos = new Vector3d(bestFurnaceX + 0.5, bestFurnaceY + 0.5, bestFurnaceZ + 0.5);
         
         // Set target to the furnace position itself
-        Vector3d targetPos = furnacePos.clone();
+        Vector3d targetPos = new Vector3d(furnacePos);
         
         
-        double distance = npcPos.distanceTo(targetPos);
-        double distanceToFurnace = npcPos.distanceTo(furnacePos);
+        double distance = npcPos.distance(targetPos);
+        double distanceToFurnace = npcPos.distance(furnacePos);
         
         
         // Set AI state to SEEK_FURNACE and target position
@@ -239,13 +239,13 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
             if (lastPos != null && lastPosTime != null) {
                 double timeDelta = currentTime - lastPosTime;
                 if (timeDelta > 0.1) { // At least 0.1 seconds have passed
-                    double movementDistance = npcPos.distanceTo(lastPos);
+                    double movementDistance = npcPos.distance(lastPos);
                     double speed = movementDistance / timeDelta;
                     // Use stricter speed check if further away, more lenient if very close
                     double maxSpeed = distanceToFurnace < 1.5 ? 1.5 : 0.8;
                     if (speed > maxSpeed) {
                         // Moving too fast, wait for it to slow down
-                        lastPositions.put(npcRef, npcPos.clone());
+                        lastPositions.put(npcRef, new Vector3d(npcPos));
                         lastPositionTime.put(npcRef, currentTime);
                         return;
                     }
@@ -253,14 +253,14 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
             }
             
             // Update position tracking
-            lastPositions.put(npcRef, npcPos.clone());
+            lastPositions.put(npcRef, new Vector3d(npcPos));
             lastPositionTime.put(npcRef, currentTime);
             
             // Calculate yaw to face the furnace (only when about to blow)
-            Vector3d direction = furnacePos.clone().subtract(npcPos);
-            Vector3d horizontalDir = direction.clone();
+            Vector3d direction = new Vector3d(furnacePos).sub(npcPos);
+            Vector3d horizontalDir = new Vector3d(direction);
             horizontalDir.y = 0; // Keep horizontal only for rotation
-            double dirLength = horizontalDir.distanceTo(Vector3d.ZERO);
+            double dirLength = horizontalDir.length();
             if (dirLength > 0.01) {
                 horizontalDir.normalize();
                 // Calculate yaw: atan2(x, z) gives angle, but we may need to invert it
@@ -270,14 +270,14 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
                 // Set NPC rotation to face the furnace
                 TransformComponent transformMutable = commandBuffer.getComponent(npcRef, TransformComponent.getComponentType());
                 if (transformMutable != null) {
-                    Vector3f rotation = transformMutable.getRotation();
+                    Rotation3f rotation = transformMutable.getRotation();
                     rotation.setYaw((float) yaw);
                 }
                 
                 // Set head rotation to face the furnace
                 HeadRotation headRotation = commandBuffer.ensureAndGetComponent(npcRef, HeadRotation.getComponentType());
                 if (headRotation != null) {
-                    Vector3f headRot = headRotation.getRotation();
+                    Rotation3f headRot = headRotation.getRotation();
                     headRot.setYaw((float) yaw);
                     headRot.setPitch(0.0f); // Look straight ahead
                 }
@@ -293,11 +293,11 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
             // Calculate mouth position based on NPC position and rotation
             TransformComponent npcTransform = store.getComponent(npcRef, TransformComponent.getComponentType());
             Vector3d mouthPos;
-            Vector3f particleRotation = null;
+            Rotation3f particleRotation = null;
             
             if (npcTransform != null) {
                 Vector3d npcWorldPos = npcTransform.getPosition();
-                Vector3f npcRotation = npcTransform.getRotation();
+                Rotation3f npcRotation = npcTransform.getRotation();
                 particleRotation = npcRotation; // Store rotation for particle spawn
                 
                 // Use slightly below eye height for mouth position (snout level)
@@ -306,18 +306,18 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
                 
                 // Calculate forward direction from yaw rotation
                 // Invert direction since yaw might be 180 degrees off (based on earlier rotation fixes)
-                float yaw = npcRotation.getYaw();
+                float yaw = npcRotation.yaw();
                 double forwardX = -Math.sin(yaw) * mouthForwardOffset;
                 double forwardZ = -Math.cos(yaw) * mouthForwardOffset;
                 
                 // Calculate mouth position: NPC position + eye height + forward direction
-                mouthPos = npcWorldPos.clone();
+                mouthPos = new Vector3d(npcWorldPos);
                 mouthPos.y += headYOffset;
                 mouthPos.x += forwardX;
                 mouthPos.z += forwardZ;
             } else {
                 // Fallback: spawn at NPC position + snout height if transform unavailable
-                mouthPos = npcPos.clone();
+                mouthPos = new Vector3d(npcPos);
                 mouthPos.y += 0.65; // Snout/mouth level
             }
             

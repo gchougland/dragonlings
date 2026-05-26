@@ -6,7 +6,7 @@ import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.math.vector.Vector3d;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.InventoryComponent;
@@ -36,8 +36,6 @@ final class DragonlingsTameworkCommandLink {
     static final String DRAGON_WHISTLE_ITEM_ID = "Dragon_Whistle";
     /** Same value as {@code TameworkMetadataKeys.COMMAND_LINKED_NPCS}. */
     private static final String META_COMMAND_LINKED_NPCS = "Tamework.Command.LinkedNpcs";
-
-    private static final String CLASS_TAMEWORK = "com.alechilles.alecstamework.Tamework";
 
     private DragonlingsTameworkCommandLink() {}
 
@@ -125,13 +123,11 @@ final class DragonlingsTameworkCommandLink {
     private static void tryRefreshTameworkCommandLinkSnapshot(
             @Nonnull Ref<EntityStore> npcRef, @Nonnull Store<EntityStore> store) {
         try {
-            // Same as {@link DragonlingTamework#tameworkHomePositionView}: default Class.forName (not Dragonlings' CL —
-            // Tamework lives in another mod JAR).
-            Class<?> tameworkClass = Class.forName(CLASS_TAMEWORK);
-            Object tamework = tameworkClass.getMethod("getInstance").invoke(null);
+            Object tamework = DragonlingsTameworkReflection.tameworkInstance();
             if (tamework == null) {
                 return;
             }
+            Class<?> tameworkClass = tamework.getClass();
             Field field = tameworkClass.getDeclaredField("commandLinkedNpcStateSnapshotService");
             field.setAccessible(true);
             Object snapshotService = field.get(tamework);

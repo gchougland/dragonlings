@@ -8,7 +8,9 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
@@ -125,9 +127,9 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
             return;
         }
         
-        com.hypixel.hytale.math.vector.Vector3d dragonlingPos = dragonlingTransform.getPosition();
-        com.hypixel.hytale.math.vector.Vector3d targetPos = targetTransform.getPosition();
-        double distance = dragonlingPos.distanceTo(targetPos);
+        Vector3d dragonlingPos = dragonlingTransform.getPosition();
+        Vector3d targetPos = targetTransform.getPosition();
+        double distance = dragonlingPos.distance(targetPos);
         
         if (distance > ATTACK_RANGE) {
             // Target out of range, clear it
@@ -145,10 +147,10 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
         
         // Attack the target!
         // Make dragonling face the target
-        com.hypixel.hytale.math.vector.Vector3d direction = new com.hypixel.hytale.math.vector.Vector3d(targetPos).subtract(dragonlingPos).normalize();
-        com.hypixel.hytale.math.vector.Vector3d horizontalDir = direction.clone();
+        Vector3d direction = new Vector3d(targetPos).sub(dragonlingPos).normalize();
+        Vector3d horizontalDir = new Vector3d(direction);
         horizontalDir.y = 0;
-        double dirLength = horizontalDir.distanceTo(com.hypixel.hytale.math.vector.Vector3d.ZERO);
+        double dirLength = horizontalDir.length();
         if (dirLength > 0.01) {
             horizontalDir.normalize();
         }
@@ -160,7 +162,7 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
         com.hypixel.hytale.server.core.modules.entity.component.TransformComponent transformMutable = 
             commandBuffer.getComponent(npcRef, com.hypixel.hytale.server.core.modules.entity.component.TransformComponent.getComponentType());
         if (transformMutable != null) {
-            com.hypixel.hytale.math.vector.Vector3f rotation = transformMutable.getRotation();
+            Rotation3f rotation = transformMutable.getRotation();
             rotation.setYaw((float) yaw);
         }
         
@@ -168,7 +170,7 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
         com.hypixel.hytale.server.core.modules.entity.component.HeadRotation headRot = 
             commandBuffer.ensureAndGetComponent(npcRef, com.hypixel.hytale.server.core.modules.entity.component.HeadRotation.getComponentType());
         if (headRot != null) {
-            com.hypixel.hytale.math.vector.Vector3f headRotation = headRot.getRotation();
+            Rotation3f headRotation = headRot.getRotation();
             headRotation.setYaw((float) yaw);
             headRotation.setPitch((float) pitch);
         }
@@ -180,13 +182,13 @@ public class PurpleDragonlingCombatBehavior extends EntityTickingSystem<EntitySt
             commandBuffer);
         
         // Calculate mouth position
-        com.hypixel.hytale.math.vector.Vector3d mouthPos;
+        Vector3d mouthPos;
         double headYOffset = 0.45;
         double mouthForwardOffset = 0.5;
         double forwardX = -Math.sin(yaw) * mouthForwardOffset;
         double forwardZ = -Math.cos(yaw) * mouthForwardOffset;
         
-        mouthPos = dragonlingPos.clone();
+        mouthPos = new Vector3d(dragonlingPos);
         mouthPos.y += headYOffset;
         mouthPos.x += forwardX;
         mouthPos.z += forwardZ;

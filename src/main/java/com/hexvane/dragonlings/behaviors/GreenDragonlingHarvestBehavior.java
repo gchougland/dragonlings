@@ -8,10 +8,10 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
-import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.util.ChunkUtil;
-import com.hypixel.hytale.math.vector.Vector3f;
-import com.hypixel.hytale.math.vector.Vector3i;
+import com.hypixel.hytale.math.vector.Rotation3f;
+import org.joml.Vector3d;
+import org.joml.Vector3i;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingData;
@@ -210,7 +210,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                     }
                     
                     Vector3d approachPos = resolveHarvestApproachPosition(world, bx, by, bz, blockType);
-                    double distance = npcPos.distanceTo(approachPos);
+                    double distance = npcPos.distance(approachPos);
                     
                     // Track the nearest mature crop
                     if (distance < bestDistance) {
@@ -234,7 +234,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                 bestCropZ = committed.bz;
                 bestBlockType = committed.blockType;
                 bestChunk = committed.chunk;
-            } else if (npcPos.distanceTo(existingTarget) <= APPROACH_DISTANCE) {
+            } else if (npcPos.distance(existingTarget) <= APPROACH_DISTANCE) {
                 data.setTargetPosition(null);
                 data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
                 return;
@@ -253,7 +253,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
         
         Vector3d approachPos =
             resolveHarvestApproachPosition(world, bestCropX, bestCropY, bestCropZ, bestBlockType);
-        Vector3d targetPos = approachPos.clone();
+        Vector3d targetPos = new Vector3d(approachPos);
         
         boolean inHarvestRange = isWithinHarvestRange(npcPos, world, bestCropX, bestCropY, bestCropZ, bestBlockType);
         
@@ -292,11 +292,11 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             // Spawn harvest particles from the dragonling's mouth/snout (same as blue dragonling water particles)
             TransformComponent npcTransform = store.getComponent(npcRef, TransformComponent.getComponentType());
             Vector3d mouthPos;
-            Vector3f particleRotation = null;
+            Rotation3f particleRotation = null;
             
             if (npcTransform != null) {
                 Vector3d npcWorldPos = npcTransform.getPosition();
-                Vector3f npcRotation = npcTransform.getRotation();
+                Rotation3f npcRotation = npcTransform.getRotation();
                 particleRotation = npcRotation; // Store rotation for particle spawn
                 
                 // Use slightly below eye height for mouth position (snout level)
@@ -305,18 +305,18 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                 
                 // Calculate forward direction from yaw rotation
                 // Invert direction since yaw might be 180 degrees off (based on earlier rotation fixes)
-                float yaw = npcRotation.getYaw();
+                float yaw = npcRotation.yaw();
                 double forwardX = -Math.sin(yaw) * mouthForwardOffset;
                 double forwardZ = -Math.cos(yaw) * mouthForwardOffset;
                 
                 // Calculate mouth position: NPC position + eye height + forward direction
-                mouthPos = npcWorldPos.clone();
+                mouthPos = new Vector3d(npcWorldPos);
                 mouthPos.y += headYOffset;
                 mouthPos.x += forwardX;
                 mouthPos.z += forwardZ;
             } else {
                 // Fallback: spawn at NPC position + snout height if transform unavailable
-                mouthPos = npcPos.clone();
+                mouthPos = new Vector3d(npcPos);
                 mouthPos.y += 0.45; // Snout/mouth level
             }
             
@@ -493,7 +493,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                         commandBuffer,
                         java.util.Collections.singletonList(remainder),
                         new Vector3d(bx + 0.5, by + 0.5, bz + 0.5),
-                        Vector3f.ZERO);
+                        Rotation3f.ZERO);
                 for (com.hypixel.hytale.component.Holder<EntityStore> itemHolder : itemDrops) {
                     if (itemHolder != null) {
                         commandBuffer.addEntity(itemHolder, com.hypixel.hytale.component.AddReason.SPAWN);
@@ -624,7 +624,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             int bz,
             @Nonnull BlockType blockType) {
         Vector3d approach = resolveHarvestApproachPosition(world, bx, by, bz, blockType);
-        return npcPos.distanceTo(approach) <= APPROACH_DISTANCE;
+        return npcPos.distance(approach) <= APPROACH_DISTANCE;
     }
 
     @Nullable
@@ -669,10 +669,10 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                         continue;
                     }
                     Vector3d approach = resolveHarvestApproachPosition(world, bx, by, bz, blockType);
-                    if (approach.distanceTo(existingTarget) > APPROACH_TARGET_MATCH) {
+                    if (approach.distance(existingTarget) > APPROACH_TARGET_MATCH) {
                         continue;
                     }
-                    double d = npcPos.distanceTo(approach);
+                    double d = npcPos.distance(approach);
                     if (d < bestDist) {
                         bestDist = d;
                         best = new HarvestCropMatch(bx, by, bz, blockType, blockChunk);

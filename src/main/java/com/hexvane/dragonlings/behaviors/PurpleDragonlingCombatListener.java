@@ -6,8 +6,8 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.math.vector.Vector3d;
-import com.hypixel.hytale.math.vector.Vector3f;
+import com.hypixel.hytale.math.vector.Rotation3f;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation;
@@ -144,17 +144,17 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                 // Check range
                 Vector3d dragonlingPos = dragonlingTransform.getPosition();
                 Vector3d targetPos = targetTransform.getPosition();
-                double distance = dragonlingPos.distanceTo(targetPos);
+                double distance = dragonlingPos.distance(targetPos);
                 
                 if (distance > PurpleDragonlingCombatBehavior.ATTACK_RANGE) {
                     continue;
                 }
                 
                 // Make dragonling face the target before attacking
-                Vector3d direction = new Vector3d(targetPos).subtract(dragonlingPos).normalize();
-                Vector3d horizontalDir = direction.clone();
+                Vector3d direction = new Vector3d(targetPos).sub(dragonlingPos).normalize();
+                Vector3d horizontalDir = new Vector3d(direction);
                 horizontalDir.y = 0; // Keep horizontal only for rotation
-                double dirLength = horizontalDir.distanceTo(Vector3d.ZERO);
+                double dirLength = horizontalDir.length();
                 if (dirLength > 0.01) {
                     horizontalDir.normalize();
                 }
@@ -166,14 +166,14 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                 // Set NPC body rotation to face target
                 TransformComponent transformMutable = commandBuffer.getComponent(dragonlingRef, TransformComponent.getComponentType());
                 if (transformMutable != null) {
-                    Vector3f rotation = transformMutable.getRotation();
+                    Rotation3f rotation = transformMutable.getRotation();
                     rotation.setYaw((float) yaw);
                 }
                 
                 // Set head rotation to face target
                 HeadRotation headRot = commandBuffer.ensureAndGetComponent(dragonlingRef, HeadRotation.getComponentType());
                 if (headRot != null) {
-                    Vector3f headRotation = headRot.getRotation();
+                    Rotation3f headRotation = headRot.getRotation();
                     headRotation.setYaw((float) yaw);
                     headRotation.setPitch((float) pitch);
                 }
@@ -193,7 +193,7 @@ public class PurpleDragonlingCombatListener extends DamageEventSystem {
                 double forwardX = -Math.sin(yaw) * mouthForwardOffset;
                 double forwardZ = -Math.cos(yaw) * mouthForwardOffset;
                 
-                mouthPos = dragonlingPos.clone();
+                mouthPos = new Vector3d(dragonlingPos);
                 mouthPos.y += headYOffset;
                 mouthPos.x += forwardX;
                 mouthPos.z += forwardZ;

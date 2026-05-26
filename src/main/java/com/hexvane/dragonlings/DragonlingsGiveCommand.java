@@ -5,8 +5,8 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Transform;
-import com.hypixel.hytale.math.vector.Vector3d;
-import com.hypixel.hytale.math.vector.Vector3f;
+import com.hypixel.hytale.math.vector.Rotation3f;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
@@ -131,8 +131,8 @@ final class DragonlingsGiveCommand extends CommandBase {
     @Nonnull
     private static Vector3d spawnPositionInFront(@Nonnull World world, @Nonnull TransformComponent playerTransform) {
         Vector3d p = playerTransform.getPosition();
-        Vector3f rot = playerTransform.getRotation();
-        Vector3d dir = Transform.getDirection(rot.getPitch(), rot.getYaw());
+        Rotation3f rot = playerTransform.getRotation();
+        Vector3d dir = Transform.getDirection(rot.pitch(), rot.yaw());
         double x = p.x + dir.x * SPAWN_DISTANCE;
         double z = p.z + dir.z * SPAWN_DISTANCE;
         double y = NPCPhysicsMath.heightOverGround(world, x, z);

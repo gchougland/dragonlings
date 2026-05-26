@@ -1,10 +1,12 @@
+import org.gradle.api.tasks.JavaExec
+
 plugins {
     `maven-publish`
     id("hytale-mod") version "0.+"
 }
 
 group = "com.hexvane"
-version = "2.1.1"
+version = "2.2.1"
 val javaVersion = 25
 
 repositories {
@@ -19,13 +21,13 @@ repositories {
 }
 
 val tameworkCurseFileId: String =
-    findProperty("tamework_curse_file_id")?.toString() ?: "7788056"
+    findProperty("tamework_curse_file_id")?.toString() ?: "8149204"
 
 dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     compileOnly(libs.jetbrains.annotations)
     compileOnly(libs.jspecify)
-    // Compile against Alec's Tamework! — runtime requires the same mod in mods/. Coordinate: curse.maven:<slug>-<projectId>:<fileId>
+    // Compile against Alec's Tamework! — place the matching JAR in the server's mods/ folder yourself at runtime.
     compileOnly("curse.maven:alecs-tamework-1447962:$tameworkCurseFileId")
 }
 
@@ -39,7 +41,7 @@ hytale {
     //
     //updateChannel = "pre-release"
 
-    // Dragonlings depends on Alec's Tamework!: copy the matching Tamework JAR from CurseForge into the server's mods folder next to this mod when using runServer.
+    // Dragonlings depends on Alec's Tamework!: place the matching Tamework JAR in the server's mods/ folder when testing or deploying.
 }
 
 java {
@@ -129,13 +131,39 @@ val syncAssets = tasks.register<Copy>("syncAssets") {
 }
 
 afterEvaluate {
-    // Now Gradle will find it, because the plugin has finished working
-    val targetTask = tasks.findByName("runServer") ?: tasks.findByName("server")
-
-    if (targetTask != null) {
-        targetTask.finalizedBy(syncAssets)
-        logger.lifecycle("✅ specific task '${targetTask.name}' hooked for auto-sync.")
-    } else {
-        logger.warn("⚠️ Could not find 'runServer' or 'server' task to hook auto-sync into.")
+    val runServerTask = tasks.findByName("runServer") ?: tasks.findByName("server")
+    if (runServerTask == null) {
+        logger.warn("⚠️ Could not find 'runServer' or 'server' task (hytale-mod). syncAssets not hooked.")
+        return@afterEvaluate
     }
+    if (runServerTask !is JavaExec) {
+        logger.warn("⚠️ Task '${runServerTask.name}' is not JavaExec; skipping sync hook and runServerNoSync.")
+        return@afterEvaluate
+    }
+    val runServer = runServerTask as JavaExec
+    // hytale-mod 0.7.x always adds an empty jvmArg when HytaleServer.aot is missing; on Windows Gradle's
+    // JavaExec then fails with "Could not find or load main class" (empty ClassNotFoundException).
+    runServer.jvmArgs = runServer.jvmArgs.filter { it.isNotBlank() }
+    runServer.finalizedBy(syncAssets)
+    logger.lifecycle("✅ Task '${runServer.name}' is finalized by syncAssets.")
+
+    tasks.register<JavaExec>("runServerNoSync") {
+        group = "hytale"
+        description =
+            "Same as runServer but does not run syncAssets afterward — safe when you edit src/main/resources while testing."
+        classpath = runServer.classpath
+        mainClass = runServer.mainClass
+        mainModule = runServer.mainModule
+        modularity.inferModulePath = runServer.modularity.inferModulePath
+        jvmArgs = runServer.jvmArgs.filter { it.isNotBlank() }
+        workingDir = runServer.workingDir
+        args = runServer.args
+        systemProperties = runServer.systemProperties
+        environment = runServer.environment
+        standardInput = runServer.standardInput
+        isIgnoreExitValue = runServer.isIgnoreExitValue
+        javaLauncher = runServer.javaLauncher
+        enableAssertions = runServer.enableAssertions
+    }
+    logger.lifecycle("✅ Task 'runServerNoSync' registered (no post-exit asset sync).")
 }

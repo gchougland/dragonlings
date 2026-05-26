@@ -5,7 +5,7 @@ import com.hypixel.hytale.component.Component;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.math.vector.Vector3d;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -168,8 +168,7 @@ public final class DragonlingTamework {
             return null;
         }
         try {
-            Class<?> tameworkClass = Class.forName("com.alechilles.alecstamework.Tamework");
-            Object tamework = tameworkClass.getMethod("getInstance").invoke(null);
+            Object tamework = DragonlingsTameworkReflection.tameworkInstance();
             if (tamework == null) {
                 return null;
             }
@@ -393,7 +392,7 @@ public final class DragonlingTamework {
         if (nt == null) {
             return false;
         }
-        double dNpcHome = snapToBlockCenter(home).distanceTo(nt.getPosition());
+        double dNpcHome = snapToBlockCenter(home).distance(nt.getPosition());
         return dNpcHome <= FOLLOW_AT_HOME_MAX_DISTANCE_FROM_ANCHOR;
     }
 

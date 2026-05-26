@@ -9,8 +9,8 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.math.vector.Vector3d;
-import com.hypixel.hytale.math.vector.Vector3f;
+import com.hypixel.hytale.math.vector.Rotation3f;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -102,7 +102,7 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
         // If we have an existing target, check if we should water it first before scanning
         boolean shouldWaterExisting = false;
         if (existingTarget != null && data.getAIState() == com.hexvane.dragonlings.DragonlingAIState.WATER_CROPS) {
-            double distanceToCurrentTarget = npcPos.distanceTo(existingTarget);
+            double distanceToCurrentTarget = npcPos.distance(existingTarget);
             if (distanceToCurrentTarget <= APPROACH_DISTANCE) {
                 // We're close enough - check if we can water it (this will be handled in watering section)
                 shouldWaterExisting = true;
@@ -226,7 +226,7 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                     }
 
                     Vector3d farmlandPos = new Vector3d(waterX + 0.5, waterY + 1.0, waterZ + 0.5);
-                    double distance = npcPos.distanceTo(farmlandPos);
+                    double distance = npcPos.distance(farmlandPos);
                     if (distance < bestDistance) {
                         bestDistance = distance;
                         bestFarmlandX = waterX;
@@ -253,7 +253,7 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                 world.getChunkIfInMemory(targetChunkIndex);
             
             if (targetChunk != null) {
-                double distanceToTarget = npcPos.distanceTo(existingTarget);
+                double distanceToTarget = npcPos.distance(existingTarget);
                 if (distanceToTarget <= APPROACH_DISTANCE) {
                     // Check if this farmland is already watered before proceeding
                     com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.ChunkStore> checkBlockRef = 
@@ -333,9 +333,9 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
         
         // We found dry farmland - set target position to the farmland
         Vector3d farmlandPos = new Vector3d(bestFarmlandX + 0.5, bestFarmlandY + 1.0, bestFarmlandZ + 0.5);
-        Vector3d targetPos = farmlandPos.clone();
+        Vector3d targetPos = new Vector3d(farmlandPos);
         
-        double distanceToFarmland = npcPos.distanceTo(farmlandPos);
+        double distanceToFarmland = npcPos.distance(farmlandPos);
         
         // Check if we're already targeting this farmland
         boolean isAlreadyTargeting = (existingTarget != null && 
@@ -462,11 +462,11 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                     // Spawn water particles from the dragonling's mouth/snout (same as red dragonling fire particles)
                     TransformComponent npcTransform = store.getComponent(npcRef, TransformComponent.getComponentType());
                     Vector3d mouthPos;
-                    Vector3f particleRotation = null;
+                    Rotation3f particleRotation = null;
                     
                     if (npcTransform != null) {
                         Vector3d npcWorldPos = npcTransform.getPosition();
-                        Vector3f npcRotation = npcTransform.getRotation();
+                        Rotation3f npcRotation = npcTransform.getRotation();
                         particleRotation = npcRotation; // Store rotation for particle spawn
                         
                         // Use slightly below eye height for mouth position (snout level)
@@ -475,18 +475,18 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                         
                         // Calculate forward direction from yaw rotation
                         // Invert direction since yaw might be 180 degrees off (based on earlier rotation fixes)
-                        float yaw = npcRotation.getYaw();
+                        float yaw = npcRotation.yaw();
                         double forwardX = -Math.sin(yaw) * mouthForwardOffset;
                         double forwardZ = -Math.cos(yaw) * mouthForwardOffset;
                         
                         // Calculate mouth position: NPC position + eye height + forward direction
-                        mouthPos = npcWorldPos.clone();
+                        mouthPos = new Vector3d(npcWorldPos);
                         mouthPos.y += headYOffset;
                         mouthPos.x += forwardX;
                         mouthPos.z += forwardZ;
                     } else {
                         // Fallback: spawn at NPC position + snout height if transform unavailable
-                        mouthPos = npcPos.clone();
+                        mouthPos = new Vector3d(npcPos);
                         mouthPos.y += 0.45; // Snout/mouth level
                     }
                     
@@ -572,25 +572,25 @@ public class BlueDragonlingWaterBehavior extends EntityTickingSystem<EntityStore
                                 // Spawn water particles (same as direct farmland watering above)
                                 TransformComponent npcTransform = store.getComponent(npcRef, TransformComponent.getComponentType());
                                 Vector3d mouthPos;
-                                Vector3f particleRotation = null;
+                                Rotation3f particleRotation = null;
                                 
                                 if (npcTransform != null) {
                                     Vector3d npcWorldPos = npcTransform.getPosition();
-                                    Vector3f npcRotation = npcTransform.getRotation();
+                                    Rotation3f npcRotation = npcTransform.getRotation();
                                     particleRotation = npcRotation;
                                     
                                     double headYOffset = 0.45;
                                     double mouthForwardOffset = 0.5;
-                                    float yaw = npcRotation.getYaw();
+                                    float yaw = npcRotation.yaw();
                                     double forwardX = -Math.sin(yaw) * mouthForwardOffset;
                                     double forwardZ = -Math.cos(yaw) * mouthForwardOffset;
                                     
-                                    mouthPos = npcWorldPos.clone();
+                                    mouthPos = new Vector3d(npcWorldPos);
                                     mouthPos.y += headYOffset;
                                     mouthPos.x += forwardX;
                                     mouthPos.z += forwardZ;
                                 } else {
-                                    mouthPos = npcPos.clone();
+                                    mouthPos = new Vector3d(npcPos);
                                     mouthPos.y += 0.45;
                                 }
                                 

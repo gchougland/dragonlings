@@ -5,7 +5,8 @@ import com.hypixel.hytale.codec.KeyedCodec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
 import com.hypixel.hytale.component.Component;
 import com.hypixel.hytale.component.ComponentType;
-import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.math.vector.Vector3dUtil;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import java.util.UUID;
 import javax.annotation.Nonnull;
@@ -25,8 +26,8 @@ public class DragonlingData implements Component<EntityStore> {
         .addField(new KeyedCodec<>("Leashed", Codec.BOOLEAN), 
             (data, leashed) -> data.isLeashed = leashed, 
             data -> data.isLeashed)
-        .addField(new KeyedCodec<>("LeashPos", Vector3d.CODEC), 
-            (data, pos) -> data.leashPosition = pos != null ? pos.clone() : null, 
+        .addField(new KeyedCodec<>("LeashPos", Vector3dUtil.CODEC), 
+            (data, pos) -> data.leashPosition = pos != null ? new Vector3d(pos) : null, 
             data -> data.leashPosition)
         .addField(new KeyedCodec<>("LeashBlockType", Codec.STRING), 
             (data, blockType) -> data.leashBlockType = blockType, 
@@ -47,8 +48,8 @@ public class DragonlingData implements Component<EntityStore> {
                 }
             }, 
             data -> data.aiState != null ? data.aiState.name() : DragonlingAIState.WANDER.name())
-        .addField(new KeyedCodec<>("TargetPos", Vector3d.CODEC), 
-            (data, pos) -> data.targetPosition = pos != null ? pos.clone() : null, 
+        .addField(new KeyedCodec<>("TargetPos", Vector3dUtil.CODEC), 
+            (data, pos) -> data.targetPosition = pos != null ? new Vector3d(pos) : null, 
             data -> data.targetPosition)
         .addField(new KeyedCodec<>("TameNotifySent", Codec.BOOLEAN),
             (data, v) -> data.tameNotifySent = v != null && v,
@@ -110,7 +111,7 @@ public class DragonlingData implements Component<EntityStore> {
     }
     
     public void setLeashPosition(@Nullable Vector3d leashPosition) {
-        this.leashPosition = leashPosition != null ? leashPosition.clone() : null;
+        this.leashPosition = leashPosition != null ? new Vector3d(leashPosition) : null;
     }
     
     @Nullable
@@ -145,7 +146,7 @@ public class DragonlingData implements Component<EntityStore> {
     }
     
     public void setTargetPosition(@Nullable Vector3d targetPosition) {
-        this.targetPosition = targetPosition != null ? targetPosition.clone() : null;
+        this.targetPosition = targetPosition != null ? new Vector3d(targetPosition) : null;
     }
 
     public boolean isTameNotifySent() {
@@ -163,11 +164,11 @@ public class DragonlingData implements Component<EntityStore> {
         cloned.isTamed = this.isTamed;
         cloned.ownerUUID = this.ownerUUID;
         cloned.isLeashed = this.isLeashed;
-        cloned.leashPosition = this.leashPosition != null ? this.leashPosition.clone() : null;
+        cloned.leashPosition = this.leashPosition != null ? new Vector3d(this.leashPosition) : null;
         cloned.leashBlockType = this.leashBlockType;
         cloned.leashRadius = this.leashRadius;
         cloned.aiState = this.aiState;
-        cloned.targetPosition = this.targetPosition != null ? this.targetPosition.clone() : null;
+        cloned.targetPosition = this.targetPosition != null ? new Vector3d(this.targetPosition) : null;
         cloned.tameNotifySent = this.tameNotifySent;
         return cloned;
     }

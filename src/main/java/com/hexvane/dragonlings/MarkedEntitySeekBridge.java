@@ -1,7 +1,8 @@
 package com.hexvane.dragonlings;
 
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.math.vector.Vector3dUtil;
+import org.joml.Vector3d;
 import com.hypixel.hytale.server.npc.role.Role;
 import javax.annotation.Nonnull;
 
@@ -30,7 +31,7 @@ public final class MarkedEntitySeekBridge {
                         storedPos = new Vector3d();
                         storedPositions[i] = storedPos;
                     }
-                    storedPos.assign(targetPos);
+                    storedPos.set(targetPos);
                 }
             }
         } catch (Exception e) {
@@ -53,7 +54,7 @@ public final class MarkedEntitySeekBridge {
                 for (int i = 0; i < storedPositions.length; i++) {
                     Vector3d storedPos = storedPositions[i];
                     if (storedPos != null) {
-                        storedPos.assign(Vector3d.MIN);
+                        storedPos.set(Vector3dUtil.MIN);
                     }
                 }
             }

@@ -10,7 +10,7 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.math.util.ChunkUtil;
-import com.hypixel.hytale.math.vector.Vector3d;
+import org.joml.Vector3d;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
@@ -254,7 +254,7 @@ public final class DragonlingsDebugDump {
         double dzh = bz - centerZ;
         double distHome = Math.sqrt(dxh * dxh + dyh * dyh + dzh * dzh);
         Vector3d blockCenter = new Vector3d(bx + 0.5, by + 0.5, bz + 0.5);
-        double distNpc = npcPos.distanceTo(blockCenter);
+        double distNpc = npcPos.distance(blockCenter);
 
         boolean mature =
             GreenDragonlingHarvestBehavior.isMatureHarvestableCropForDebug(world, bx, by, bz, blockType);
@@ -419,7 +419,7 @@ public final class DragonlingsDebugDump {
                     }
 
                     Vector3d sample = new Vector3d(waterX + 0.5, waterY + 1.0, waterZ + 0.5);
-                    double distNpc = npcPos.distanceTo(sample);
+                    double distNpc = npcPos.distance(sample);
                     out.append("  soil ");
                     if (tilledSoil == null) {
                         out.append(String.format(Locale.US,
@@ -499,7 +499,7 @@ public final class DragonlingsDebugDump {
                         continue;
                     }
                     Vector3d fp = new Vector3d(bx + 0.5, by + 0.5, bz + 0.5);
-                    double distNpc = npcPos.distanceTo(fp);
+                    double distNpc = npcPos.distance(fp);
                     out.append("  furnace ")
                         .append(String.format(Locale.US,
                             "(%d,%d,%d) %s active=%s recipe=%s distNpc=%.2f\n",
@@ -540,7 +540,7 @@ public final class DragonlingsDebugDump {
                 p.x,
                 p.y,
                 p.z,
-                npcPos.distanceTo(p)));
+                npcPos.distance(p)));
         } else {
             out.append("  target transform: null\n");
         }
