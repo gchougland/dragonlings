@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.hexvane"
-version = "2.2.1"
+version = "2.3.0"
 val javaVersion = 25
 
 repositories {
@@ -21,7 +21,7 @@ repositories {
 }
 
 val tameworkCurseFileId: String =
-    findProperty("tamework_curse_file_id")?.toString() ?: "8149204"
+    findProperty("tamework_curse_file_id")?.toString() ?: "8735884"
 
 dependencies {
     implementation("com.google.code.gson:gson:2.11.0")

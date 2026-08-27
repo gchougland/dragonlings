@@ -16,30 +16,36 @@ public final class DragonlingsTameCapConfig {
 
     public static final BuilderCodec<DragonlingsTameCapConfig> CODEC =
         BuilderCodec.builder(DragonlingsTameCapConfig.class, DragonlingsTameCapConfig::new)
-            .addField(
+            .append(
                 new KeyedCodec<>("MaxGreen", Codec.INTEGER),
                 (c, v) -> c.maxGreen = clampMax(v),
                 c -> c.maxGreen)
-            .addField(
+            .add()
+            .append(
                 new KeyedCodec<>("MaxBlue", Codec.INTEGER),
                 (c, v) -> c.maxBlue = clampMax(v),
                 c -> c.maxBlue)
-            .addField(
+            .add()
+            .append(
                 new KeyedCodec<>("MaxRed", Codec.INTEGER),
                 (c, v) -> c.maxRed = clampMax(v),
                 c -> c.maxRed)
-            .addField(
+            .add()
+            .append(
                 new KeyedCodec<>("MaxPurple", Codec.INTEGER),
                 (c, v) -> c.maxPurple = clampMax(v),
                 c -> c.maxPurple)
-            .addField(
+            .add()
+            .append(
                 new KeyedCodec<>("MaxTemplatePilot", Codec.INTEGER),
                 (c, v) -> c.maxTemplatePilot = clampMax(v),
                 c -> c.maxTemplatePilot)
-            .addField(
+            .add()
+            .append(
                 new KeyedCodec<>("PurpleVoidProjectilePhysicalDamage", Codec.DOUBLE),
                 (c, v) -> c.purpleVoidProjectilePhysicalDamage = clampDamage(v),
                 c -> c.purpleVoidProjectilePhysicalDamage)
+            .add()
             .build();
 
     private int maxGreen = DEFAULT_MAX_PER_TYPE;

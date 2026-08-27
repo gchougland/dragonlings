@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] - 8/27/2026 (Hytale Update 6)
+
+### Requirements
+
+- **Hytale** `>=0.6.0-pre.0 <0.7.0` (Update 6)
+- **Alec's Tamework!** `>=3.2.2` — use [CurseForge file 8735884](https://www.curseforge.com/hytale/mods/alecs-tamework/files/8735884) (v3.2.2) in the server `mods/` folder alongside Dragonlings
+
+### Changed
+
+- **Build / manifest** — `server_version` is `>=0.6.0-pre.0 <0.7.0`; Tamework compile dependency pinned to Curse file **8735884**
+- **Update 6 APIs** — chunk/block access uses `ChunkStore` section refs, `BlockSection`, and `BlockOperations` instead of deprecated `World.getChunkIfInMemory` / `WorldChunk` block helpers; harvest uses the new `FarmingUtil.harvest` signature; NPC role state and seek slots read `StateSupport` / `MarkedEntitySupport` ECS components; commands use `PermissionQuery` constants
+- **Template Pilot NPC role** — `Dragonling_TemplatePilot` now variants `Dragonling_Base`. Tamework 3.2.2 no longer ships `Template_Tamework_Example_Simple`, which caused builder validation to fail at startup.
+
+### Added
+
+- **Green dragonling replanting** — After harvesting a crop that does not vanilla-regrow (no `StageSetAfterHarvest` / non-eternal), if the linked chest contains a matching **regular** seed, the dragonling consumes one seed and plants it in the same plot. Eternal crops are left to vanilla regrow and eternal seeds are never consumed.
+- **Purple void orb friendly fire** — The purple dragonling’s void projectile no longer damages its owner or other Tamework-tamed pets owned by that same player.
+
 ## [2.2.1] - 2026-05-26
 
 ### Requirements

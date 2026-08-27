@@ -1,21 +1,25 @@
 package com.hexvane.dragonlings.behaviors;
 
+import com.hypixel.hytale.assetstore.AssetRegistry;
+import com.hypixel.hytale.assetstore.map.AssetMapWithIndexes;
 import com.hypixel.hytale.builtin.adventure.farming.FarmingUtil;
+import com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
-import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.component.query.Query;
+import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Rotation3f;
-import org.joml.Vector3d;
-import org.joml.Vector3i;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.StateData;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingData;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.farming.FarmingStageData;
+import com.hypixel.hytale.server.core.asset.type.item.config.Item;
 import com.hypixel.hytale.server.core.inventory.InventoryComponent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.CombinedItemContainer;
@@ -24,25 +28,26 @@ import com.hypixel.hytale.server.core.inventory.transaction.ItemStackTransaction
 import com.hypixel.hytale.server.core.modules.block.components.ItemContainerBlock;
 import com.hypixel.hytale.server.core.modules.entity.EntityModule;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.interaction.interaction.config.Interaction;
+import com.hypixel.hytale.server.core.modules.interaction.interaction.config.RootInteraction;
+import com.hypixel.hytale.server.core.modules.interaction.interaction.config.client.PlaceBlockInteraction;
 import com.hypixel.hytale.server.core.universe.world.World;
-import com.hypixel.hytale.server.core.universe.world.chunk.BlockChunk;
-import com.hypixel.hytale.server.core.universe.world.chunk.BlockComponentChunk;
-import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
-import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
-import com.hypixel.hytale.builtin.adventure.farming.states.FarmingBlock;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import com.hypixel.hytale.server.core.util.FillerBlockUtil;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
-import com.hypixel.hytale.component.spatial.SpatialResource;
 import com.hexvane.dragonlings.DragonlingData;
 import com.hexvane.dragonlings.DragonlingTamework;
+import com.hexvane.dragonlings.world.ChunkSectionBlockUtil;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import java.lang.reflect.Field;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import org.joml.Vector3d;
+import org.joml.Vector3i;
 
 /**
  * Behavior system for Green dragonlings - harvests crops and deposits them in chest.
@@ -51,6 +56,14 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
     public static final double HARVEST_RADIUS = 11.0;
     private static final double HARVEST_COOLDOWN = 2.0; // Seconds between crop harvests
     private static final double APPROACH_DISTANCE = 3.0; // Distance to trigger harvesting
+    private static final String TILLED_SOIL_BLOCK_ID = "Soil_Dirt_Tilled";
+    private static final String PLANTER_BLOCK_TAG = "SubType=Planter";
+
+    @Nullable
+    private static final Field PLACE_BLOCK_TYPE_KEY_FIELD = resolvePlaceBlockTypeKeyField();
+
+    @Nullable
+    private static volatile Map<String, CropSeedBinding> cropBlockToSeed;
     
     @Nonnull
     private final ComponentType<EntityStore, NPCEntity> npcComponentType;
@@ -142,8 +155,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
         int centerY = (int) Math.floor(leashPos.y); // Y is vertical
         int centerZ = (int) Math.floor(leashPos.z); // Z is north/south
         
-        WorldChunk chunk = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(centerX, centerZ));
-        if (chunk == null) {
+        if (!ChunkSectionBlockUtil.isChunkInMemory(world, centerX, centerZ)) {
             return;
         }
 
@@ -157,10 +169,8 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
         int bestCropX = 0, bestCropY = 0, bestCropZ = 0;
         double bestDistance = Double.MAX_VALUE;
         com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType bestBlockType = null;
-        com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk bestChunk = null;
         
         // Scan area for crops in a true 3D sphere (not a cylinder or single Y): horizontal + dy filtered by radiusSq.
-        // Note: In Hytale, getBlock(x, y, z) where y is vertical and z is north/south
         int radius = (int) Math.ceil(HARVEST_RADIUS);
         double radiusSq = HARVEST_RADIUS * HARVEST_RADIUS;
         for (int dx = -radius; dx <= radius; dx++) {
@@ -175,10 +185,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                     continue; // Already outside sphere radius even at closest Y
                 }
                 
-                // Get the chunk for this block position (might be different from chest chunk)
-                long blockChunkIndex = com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(bx, bz);
-                WorldChunk blockChunk = world.getChunkIfInMemory(blockChunkIndex);
-                if (blockChunk == null) {
+                if (!ChunkSectionBlockUtil.isChunkInMemory(world, bx, bz)) {
                     continue; // Chunk not loaded, skip this block
                 }
                 
@@ -192,8 +199,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                         continue; // Outside sphere radius
                     }
                     
-                    // Use getBlock() - parameters are (x, y, z) where y is vertical, z is north/south
-                    int blockId = blockChunk.getBlock(bx, by, bz);
+                    int blockId = ChunkSectionBlockUtil.blockId(world, bx, by, bz);
                     if (blockId == 0) {
                         continue; // Air or invalid block
                     }
@@ -204,7 +210,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                         continue;
                     }
 
-                    // Check if it's a harvestable, mature crop (uses WorldChunk block entity — same as watering can)
+                    // Check if it's a harvestable, mature crop
                     if (!isMatureHarvestableCrop(world, bx, by, bz, blockType)) {
                         continue;
                     }
@@ -219,7 +225,6 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                         bestCropY = by;
                         bestCropZ = bz;
                         bestBlockType = blockType;
-                        bestChunk = blockChunk;
                     }
                 }
             }
@@ -233,7 +238,6 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                 bestCropY = committed.by;
                 bestCropZ = committed.bz;
                 bestBlockType = committed.blockType;
-                bestChunk = committed.chunk;
             } else if (npcPos.distance(existingTarget) <= APPROACH_DISTANCE) {
                 data.setTargetPosition(null);
                 data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
@@ -242,7 +246,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
         }
         
         // If we found a mature crop, set AI state to HARVEST_CROPS and set target position
-        if (bestBlockType == null || bestChunk == null) {
+        if (bestBlockType == null) {
             // No mature crop found - reset to WANDER state
             if (data.getAIState() == com.hexvane.dragonlings.DragonlingAIState.HARVEST_CROPS) {
                 data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
@@ -281,7 +285,6 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             int bx = bestCropX;
             int by = bestCropY;
             int bz = bestCropZ;
-            WorldChunk blockChunk = bestChunk;
             
             // Play Blow animation (harvesting action)
             npcComponent.playAnimation(npcRef, 
@@ -349,36 +352,14 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             
             // Same path as HarvestCropInteraction: vanilla handles multiblock regrow, filler, and break logic.
             Vector3i targetBlock = new Vector3i(bx, by, bz);
-            ChunkStore chunkStoreApi = world.getChunkStore();
-            Ref<ChunkStore> columnRef = chunkStoreApi.getChunkReference(ChunkUtil.indexChunkFromBlock(bx, bz));
-            if (columnRef == null || !columnRef.isValid()) {
-                harvestCooldowns.put(npcRef, currentTime);
-                return;
-            }
-            Store<ChunkStore> columnStore = chunkStoreApi.getStore();
-            BlockChunk harvestBlockChunk = columnStore.getComponent(columnRef, BlockChunk.getComponentType());
-            if (harvestBlockChunk == null) {
-                harvestCooldowns.put(npcRef, currentTime);
-                return;
-            }
-            BlockSection harvestSection = harvestBlockChunk.getSectionAtBlockY(by);
-            if (harvestSection == null) {
-                harvestCooldowns.put(npcRef, currentTime);
-                return;
-            }
-            WorldChunk harvestWorldChunk = columnStore.getComponent(columnRef, WorldChunk.getComponentType());
-            if (harvestWorldChunk == null) {
-                harvestCooldowns.put(npcRef, currentTime);
-                return;
-            }
-            BlockType harvestBlockType = harvestWorldChunk.getBlockType(targetBlock);
+            BlockType harvestBlockType = ChunkSectionBlockUtil.blockType(world, bx, by, bz);
             if (harvestBlockType == null) {
                 harvestCooldowns.put(npcRef, currentTime);
                 return;
             }
             BlockGathering harvestGathering = harvestBlockType.getGathering();
             if (harvestGathering == null || harvestGathering.getHarvest() == null) {
-                blockChunk.breakBlock(bx, by, bz, 0);
+                ChunkSectionBlockUtil.setBlockEmpty(world, bx, by, bz);
                 harvestCooldowns.put(npcRef, currentTime);
                 return;
             }
@@ -395,8 +376,19 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             CombinedItemContainer npcInv = InventoryComponent.getCombined(commandBuffer, npcRef, InventoryComponent.HOTBAR_FIRST);
             Object2IntOpenHashMap<String> beforeCounts = countQuantitiesByItemId(npcInv);
 
-            int rotationIndex = harvestSection.getRotationIndex(bx, by, bz);
-            boolean harvested = FarmingUtil.harvest(world, commandBuffer, npcRef, harvestBlockType, rotationIndex, targetBlock);
+            Vector3i plantRoot = ChunkSectionBlockUtil.fillerRoot(world, bx, by, bz);
+            if (plantRoot == null) {
+                plantRoot = new Vector3i(bx, by, bz);
+            }
+
+            int rotationIndex = ChunkSectionBlockUtil.rotationIndex(world, bx, by, bz);
+            boolean harvested = FarmingUtil.harvest(
+                world.getChunkStore().getStore(),
+                commandBuffer,
+                npcRef,
+                harvestBlockType,
+                rotationIndex,
+                targetBlock);
 
             if (harvested) {
                 Object2IntOpenHashMap<String> afterCounts = countQuantitiesByItemId(npcInv);
@@ -411,9 +403,16 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                     bx,
                     by,
                     bz);
-            } else if (blockChunk.getBlock(bx, by, bz) != 0) {
+                tryReplantFromChest(
+                    world,
+                    chestInventory,
+                    harvestBlockType,
+                    plantRoot,
+                    eternalCrop,
+                    regrowsAfterHarvest);
+            } else if (ChunkSectionBlockUtil.blockId(world, bx, by, bz) != 0) {
                 // Failed harvest (e.g. regrow preconditions); avoid double-break when vanilla already cleared the cell
-                blockChunk.breakBlock(bx, by, bz, 0);
+                ChunkSectionBlockUtil.setBlockEmpty(world, bx, by, bz);
             }
             
             // Update cooldown and return - harvest one crop per cooldown period
@@ -529,29 +528,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
      */
     @Nullable
     private static Ref<ChunkStore> resolveBlockEntityRefForFarming(@Nonnull World world, int x, int y, int z) {
-        ChunkStore chunkStoreApi = world.getChunkStore();
-        Ref<ChunkStore> chunkRef = chunkStoreApi.getChunkReference(ChunkUtil.indexChunkFromBlock(x, z));
-        if (chunkRef == null || !chunkRef.isValid()) {
-            return null;
-        }
-        Store<ChunkStore> chunkStore = chunkStoreApi.getStore();
-        BlockChunk blockChunk = chunkStore.getComponent(chunkRef, BlockChunk.getComponentType());
-        BlockComponentChunk blockComponentChunk = chunkStore.getComponent(chunkRef, BlockComponentChunk.getComponentType());
-        if (blockChunk == null || blockComponentChunk == null) {
-            return null;
-        }
-        Vector3i block = new Vector3i(x, y, z);
-        BlockSection section = blockChunk.getSectionAtBlockY(block.y);
-        if (section == null) {
-            return null;
-        }
-        int filler = section.getFiller(block.x, block.y, block.z);
-        if (filler != 0) {
-            block.x = block.x - FillerBlockUtil.unpackX(filler);
-            block.y = block.y - FillerBlockUtil.unpackY(filler);
-            block.z = block.z - FillerBlockUtil.unpackZ(filler);
-        }
-        return blockComponentChunk.getEntityReference(ChunkUtil.indexBlockInColumn(block.x, block.y, block.z));
+        return ChunkSectionBlockUtil.blockEntityRefAtFillerRoot(world, x, y, z);
     }
 
     /**
@@ -581,23 +558,21 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
      */
     @Nullable
     private static Vector3d findGroundStandBelowAppleColumn(@Nonnull World world, int bx, int appleY, int bz) {
-        long chunkIndex = ChunkUtil.indexChunkFromBlock(bx, bz);
-        WorldChunk wc = world.getChunkIfInMemory(chunkIndex);
-        if (wc == null) {
+        if (!ChunkSectionBlockUtil.isChunkInMemory(world, bx, bz)) {
             return null;
         }
-        for (int y = appleY - 1; y >= 0; y--) {
-            int blockId = wc.getBlock(bx, y, bz);
+        for (int y = appleY - 1; y >= ChunkUtil.MIN_Y; y--) {
+            int blockId = ChunkSectionBlockUtil.blockId(world, bx, y, bz);
             if (blockId == 0) {
                 continue;
             }
-            int above = y < 319 ? wc.getBlock(bx, y + 1, bz) : 0;
+            int above = y < ChunkUtil.HEIGHT_MINUS_1 ? ChunkSectionBlockUtil.blockId(world, bx, y + 1, bz) : 0;
             if (above == 0) {
                 return new Vector3d(bx + 0.5, y + 1.0, bz + 0.5);
             }
         }
-        for (int y = appleY - 1; y >= 0; y--) {
-            if (wc.getBlock(bx, y, bz) != 0) {
+        for (int y = appleY - 1; y >= ChunkUtil.MIN_Y; y--) {
+            if (ChunkSectionBlockUtil.blockId(world, bx, y, bz) != 0) {
                 return new Vector3d(bx + 0.5, y + 1.0, bz + 0.5);
             }
         }
@@ -647,8 +622,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                 }
                 int bx = centerX + dx;
                 int bz = centerZ + dz;
-                WorldChunk blockChunk = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(bx, bz));
-                if (blockChunk == null) {
+                if (!ChunkSectionBlockUtil.isChunkInMemory(world, bx, bz)) {
                     continue;
                 }
                 for (int dy = -radius; dy <= radius; dy++) {
@@ -657,7 +631,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                     if (distanceSq > radiusSq) {
                         continue;
                     }
-                    int blockId = blockChunk.getBlock(bx, by, bz);
+                    int blockId = ChunkSectionBlockUtil.blockId(world, bx, by, bz);
                     if (blockId == 0) {
                         continue;
                     }
@@ -675,7 +649,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
                     double d = npcPos.distance(approach);
                     if (d < bestDist) {
                         bestDist = d;
-                        best = new HarvestCropMatch(bx, by, bz, blockType, blockChunk);
+                        best = new HarvestCropMatch(bx, by, bz, blockType);
                     }
                 }
             }
@@ -689,15 +663,12 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
         final int bz;
         @Nonnull
         final BlockType blockType;
-        @Nonnull
-        final WorldChunk chunk;
 
-        HarvestCropMatch(int bx, int by, int bz, @Nonnull BlockType blockType, @Nonnull WorldChunk chunk) {
+        HarvestCropMatch(int bx, int by, int bz, @Nonnull BlockType blockType) {
             this.bx = bx;
             this.by = by;
             this.bz = bz;
             this.blockType = blockType;
-            this.chunk = chunk;
         }
     }
 
@@ -722,10 +693,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
         if (isFinalCropStageBlockType(blockType)) {
             return true;
         }
-        WorldChunk wc =
-            world.getChunkIfInMemory(com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(bx, bz));
-        Ref<ChunkStore> blockRef =
-            wc != null ? wc.getBlockComponentEntity(bx, by, bz) : null;
+        Ref<ChunkStore> blockRef = ChunkSectionBlockUtil.blockEntityRefAt(world, bx, by, bz);
         if (blockRef == null) {
             blockRef = resolveBlockEntityRefForFarming(world, bx, by, bz);
         }
@@ -791,33 +759,232 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
     }
 
     /**
+     * After a non-eternal harvest, consume one matching regular seed from the chest and plant it on the same plot.
+     */
+    private static void tryReplantFromChest(
+            @Nonnull World world,
+            @Nonnull ItemContainer chestInventory,
+            @Nonnull BlockType harvestedBlockType,
+            @Nonnull Vector3i plantRoot,
+            boolean eternalCrop,
+            boolean regrowsAfterHarvest) {
+        if (eternalCrop || regrowsAfterHarvest || isAppleTreeWallCrop(harvestedBlockType)) {
+            return;
+        }
+        CropSeedBinding binding = resolveNonEternalSeed(harvestedBlockType);
+        if (binding == null) {
+            return;
+        }
+        int px = plantRoot.x;
+        int py = plantRoot.y;
+        int pz = plantRoot.z;
+        if (ChunkSectionBlockUtil.blockId(world, px, py, pz) != BlockType.EMPTY_ID) {
+            return;
+        }
+        if (!isVanillaSeedPlantableSoil(world, px, py, pz)) {
+            return;
+        }
+        int cropBlockId = BlockType.getAssetMap().getIndex(binding.blockTypeToPlace);
+        if (cropBlockId == AssetMapWithIndexes.NOT_FOUND) {
+            return;
+        }
+        BlockType cropBlockType = BlockType.getAssetMap().getAsset(cropBlockId);
+        if (cropBlockType == null) {
+            return;
+        }
+        ItemStack seed = new ItemStack(binding.seedItemId, 1);
+        if (!chestInventory.canRemoveItemStack(seed)) {
+            return;
+        }
+        ItemStackTransaction removed = chestInventory.removeItemStack(seed, true, true);
+        if (!removed.succeeded()) {
+            return;
+        }
+        boolean placed = ChunkSectionBlockUtil.setBlock(world, px, py, pz, cropBlockId, cropBlockType);
+        if (!placed) {
+            chestInventory.addItemStack(new ItemStack(binding.seedItemId, 1));
+        }
+    }
+
+    @Nullable
+    private static CropSeedBinding resolveNonEternalSeed(@Nonnull BlockType harvestedBlockType) {
+        Map<String, CropSeedBinding> map = seedMap();
+        String harvestedId = harvestedBlockType.getId();
+        if (harvestedId != null) {
+            CropSeedBinding binding = map.get(harvestedId);
+            if (binding != null) {
+                return binding;
+            }
+        }
+        String defaultKey = harvestedBlockType.getDefaultStateKey();
+        if (defaultKey != null && !defaultKey.equals(harvestedId)) {
+            return map.get(defaultKey);
+        }
+        return null;
+    }
+
+    @Nonnull
+    private static Map<String, CropSeedBinding> seedMap() {
+        Map<String, CropSeedBinding> map = cropBlockToSeed;
+        if (map == null) {
+            synchronized (GreenDragonlingHarvestBehavior.class) {
+                map = cropBlockToSeed;
+                if (map == null) {
+                    map = buildSeedMap();
+                    cropBlockToSeed = map;
+                }
+            }
+        }
+        return map;
+    }
+
+    @Nonnull
+    private static Map<String, CropSeedBinding> buildSeedMap() {
+        Map<String, CropSeedBinding> map = new HashMap<>();
+        for (Item item : Item.getAssetMap().getAssetMap().values()) {
+            if (item == null) {
+                continue;
+            }
+            String itemId = item.getId();
+            if (itemId == null || !itemId.contains("Seed") || itemId.contains("Eternal")) {
+                continue;
+            }
+            String placedBlockKey = placeBlockTypeFromSeedItem(item);
+            if (placedBlockKey == null || placedBlockKey.contains("Eternal")) {
+                continue;
+            }
+            indexCropBlockKeys(map, placedBlockKey, new CropSeedBinding(itemId, placedBlockKey));
+        }
+        return Collections.unmodifiableMap(map);
+    }
+
+    private static void indexCropBlockKeys(
+            @Nonnull Map<String, CropSeedBinding> map,
+            @Nonnull String placedBlockKey,
+            @Nonnull CropSeedBinding binding) {
+        map.putIfAbsent(placedBlockKey, binding);
+        BlockType placed = BlockType.getAssetMap().getAsset(placedBlockKey);
+        if (placed == null) {
+            return;
+        }
+        String defaultKey = placed.getDefaultStateKey();
+        if (defaultKey != null) {
+            map.putIfAbsent(defaultKey, binding);
+        }
+        StateData state = placed.getState();
+        if (state == null || state.getStateNames() == null) {
+            return;
+        }
+        for (String stateName : state.getStateNames()) {
+            String stateKey = placed.getBlockKeyForState(stateName);
+            if (stateKey != null) {
+                map.putIfAbsent(stateKey, binding);
+            }
+        }
+    }
+
+    @Nullable
+    private static String placeBlockTypeFromSeedItem(@Nonnull Item item) {
+        Map<String, String> vars = item.getInteractionVars();
+        if (vars == null) {
+            return null;
+        }
+        String seedRootId = vars.get("SeedId");
+        if (seedRootId == null) {
+            return null;
+        }
+        RootInteraction seedRoot = RootInteraction.getAssetMap().getAsset(seedRootId);
+        if (seedRoot == null) {
+            return null;
+        }
+        String[] interactionIds = seedRoot.getInteractionIds();
+        if (interactionIds == null) {
+            return null;
+        }
+        for (String interactionId : interactionIds) {
+            if (interactionId == null) {
+                continue;
+            }
+            Interaction interaction = Interaction.getAssetMap().getAsset(interactionId);
+            if (interaction instanceof PlaceBlockInteraction place) {
+                String blockTypeKey = readPlaceBlockTypeKey(place);
+                if (blockTypeKey != null && !blockTypeKey.isEmpty()) {
+                    return blockTypeKey;
+                }
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static Field resolvePlaceBlockTypeKeyField() {
+        try {
+            Field field = PlaceBlockInteraction.class.getDeclaredField("blockTypeKey");
+            field.setAccessible(true);
+            return field;
+        } catch (NoSuchFieldException | SecurityException ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static String readPlaceBlockTypeKey(@Nonnull PlaceBlockInteraction place) {
+        if (PLACE_BLOCK_TYPE_KEY_FIELD == null) {
+            return null;
+        }
+        try {
+            Object value = PLACE_BLOCK_TYPE_KEY_FIELD.get(place);
+            return value instanceof String key ? key : null;
+        } catch (IllegalAccessException ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Matches vanilla {@code Seed_Condition}: tilled soil or a planter block below the plot.
+     */
+    private static boolean isVanillaSeedPlantableSoil(@Nonnull World world, int plantX, int plantY, int plantZ) {
+        BlockType below = ChunkSectionBlockUtil.blockType(world, plantX, plantY - 1, plantZ);
+        if (below == null) {
+            return false;
+        }
+        String belowId = below.getId();
+        if (belowId != null && belowId.contains(TILLED_SOIL_BLOCK_ID)) {
+            return true;
+        }
+        String defaultKey = below.getDefaultStateKey();
+        if (TILLED_SOIL_BLOCK_ID.equals(defaultKey)) {
+            return true;
+        }
+        int planterTag = AssetRegistry.getTagIndex(PLANTER_BLOCK_TAG);
+        if (planterTag == AssetRegistry.TAG_NOT_FOUND) {
+            return false;
+        }
+        int belowBlockId = ChunkSectionBlockUtil.blockId(world, plantX, plantY - 1, plantZ);
+        return BlockType.getAssetMap().getIndexesForTag(planterTag).contains(belowBlockId);
+    }
+
+    private static final class CropSeedBinding {
+        @Nonnull
+        final String seedItemId;
+        @Nonnull
+        final String blockTypeToPlace;
+
+        CropSeedBinding(@Nonnull String seedItemId, @Nonnull String blockTypeToPlace) {
+            this.seedItemId = seedItemId;
+            this.blockTypeToPlace = blockTypeToPlace;
+        }
+    }
+
+    /**
      * Resolves multi-block roots via filler (same as stash / container commands) then reads {@link ItemContainerBlock}.
      */
     @Nullable
     private static ItemContainerBlock findItemContainerBlockAt(@Nonnull World world, int x, int y, int z) {
-        ChunkStore chunkStoreApi = world.getChunkStore();
-        Ref<ChunkStore> chunkRef = chunkStoreApi.getChunkReference(ChunkUtil.indexChunkFromBlock(x, z));
-        if (chunkRef == null || !chunkRef.isValid()) {
-            return null;
-        }
-        Store<ChunkStore> chunkStore = chunkStoreApi.getStore();
-        BlockChunk blockChunk = chunkStore.getComponent(chunkRef, BlockChunk.getComponentType());
-        BlockComponentChunk blockComponentChunk = chunkStore.getComponent(chunkRef, BlockComponentChunk.getComponentType());
-        if (blockChunk == null || blockComponentChunk == null) {
-            return null;
-        }
-        Vector3i block = new Vector3i(x, y, z);
-        BlockSection section = blockChunk.getSectionAtBlockY(block.y);
-        int filler = section.getFiller(block.x, block.y, block.z);
-        if (filler != 0) {
-            block.x = block.x - FillerBlockUtil.unpackX(filler);
-            block.y = block.y - FillerBlockUtil.unpackY(filler);
-            block.z = block.z - FillerBlockUtil.unpackZ(filler);
-        }
-        Ref<ChunkStore> blockEntityRef = blockComponentChunk.getEntityReference(ChunkUtil.indexBlockInColumn(block.x, block.y, block.z));
+        Ref<ChunkStore> blockEntityRef = ChunkSectionBlockUtil.blockEntityRefAtFillerRoot(world, x, y, z);
         if (blockEntityRef == null) {
             return null;
         }
-        return chunkStore.getComponent(blockEntityRef, ItemContainerBlock.getComponentType());
+        return world.getChunkStore().getStore().getComponent(blockEntityRef, ItemContainerBlock.getComponentType());
     }
 }

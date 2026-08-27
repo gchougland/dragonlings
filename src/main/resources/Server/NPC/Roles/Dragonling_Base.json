@@ -42,7 +42,7 @@
           ]
         },
         {
-          "$Comment": "Bridge command-item move / ping hooks into Tamework movement (Template_Tamework_Example_Simple).",
+          "$Comment": "Bridge command-item move / ping hooks into Tamework movement (Component_Tamework_Instruction_Command_Move).",
           "Continue": true,
           "Sensor": {
             "Type": "Any"
@@ -108,7 +108,7 @@
           ]
         },
         {
-          "$Comment": "Whistle Attack target / Defend: combat leash + seek (Template_Tamework_Example_Simple).",
+          "$Comment": "Whistle Attack target / Defend: combat leash + seek (Component_Tamework_Instruction_Defend).",
           "Sensor": {
             "Type": "State",
             "State": "Defend"

@@ -14,6 +14,7 @@ import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.permissions.HytalePermissions;
+import com.hypixel.hytale.server.core.permissions.PermissionQuery;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -34,6 +35,8 @@ import javax.annotation.Nullable;
 final class DragonlingsGiveCommand extends CommandBase {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static final double SPAWN_DISTANCE = 3.0;
+    private static final PermissionQuery PERM =
+        PermissionQuery.of(HytalePermissions.fromCommand("dragonlings", "give"));
 
     @Nonnull
     private final RequiredArg<PlayerRef> playerArg =
@@ -51,7 +54,7 @@ final class DragonlingsGiveCommand extends CommandBase {
             @Nonnull Config<DragonlingsTameCapConfig> tameCapConfig,
             @Nonnull DragonlingsTameCountStore tameCountStore) {
         super("give", "server.dragonlings.command.give.desc");
-        this.requirePermission(HytalePermissions.fromCommand("dragonlings", "give"));
+        this.requirePermission(PERM);
         this.tameCapConfig = tameCapConfig;
         this.tameCountStore = tameCountStore;
     }

@@ -21,6 +21,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.DragonlingData;
 import com.hexvane.dragonlings.DragonlingTamework;
+import com.hexvane.dragonlings.world.ChunkSectionBlockUtil;
 import java.util.List;
 import javax.annotation.Nonnull;
 
@@ -108,9 +109,7 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
         int centerZ = (int) Math.floor(leashPos.z);
         
         // Find nearest active furnace in range
-        com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk centerChunk = 
-            world.getChunkIfInMemory(com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(centerX, centerZ));
-        if (centerChunk == null) {
+        if (!ChunkSectionBlockUtil.isChunkInMemory(world, centerX, centerZ)) {
             // No chunk loaded, reset to WANDER state
             data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);
             data.setTargetPosition(null);
@@ -120,7 +119,6 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
         int bestFurnaceX = 0, bestFurnaceY = 0, bestFurnaceZ = 0;
         double bestDistance = Double.MAX_VALUE;
         com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType bestBlockType = null;
-        com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk bestChunk = null;
         
         // Scan area for furnaces in a sphere
         int radius = (int) Math.ceil(FURNACE_RADIUS);
@@ -130,11 +128,7 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
                 int bx = centerX + dx;
                 int bz = centerZ + dz;
                 
-                // Get chunk for this block position
-                long blockChunkIndex = com.hypixel.hytale.math.util.ChunkUtil.indexChunkFromBlock(bx, bz);
-                com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk blockChunk = 
-                    world.getChunkIfInMemory(blockChunkIndex);
-                if (blockChunk == null) {
+                if (!ChunkSectionBlockUtil.isChunkInMemory(world, bx, bz)) {
                     continue;
                 }
                 
@@ -148,8 +142,7 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
                         continue; // Outside sphere radius
                     }
                     
-                    // Use getBlock() - parameters are (x, y, z) where y is vertical, z is north/south
-                    int blockId = blockChunk.getBlock(bx, by, bz);
+                    int blockId = ChunkSectionBlockUtil.blockId(world, bx, by, bz);
                     if (blockId == 0) {
                         continue; // Air or invalid block
                     }
@@ -190,14 +183,13 @@ public class RedDragonlingFurnaceBehavior extends EntityTickingSystem<EntityStor
                         bestFurnaceY = by;
                         bestFurnaceZ = bz;
                         bestBlockType = blockType;
-                        bestChunk = blockChunk;
                     }
                 }
             }
         }
         
         // If we found a furnace, set AI state to SEEK_FURNACE and set target position
-        if (bestBlockType == null || bestChunk == null) {
+        if (bestBlockType == null) {
             // No furnace found - reset to WANDER state
             if (data.getAIState() == com.hexvane.dragonlings.DragonlingAIState.SEEK_FURNACE) {
                 data.setAIState(com.hexvane.dragonlings.DragonlingAIState.WANDER);

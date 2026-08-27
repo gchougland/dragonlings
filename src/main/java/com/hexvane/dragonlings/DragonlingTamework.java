@@ -2,6 +2,7 @@ package com.hexvane.dragonlings;
 
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Component;
+import com.hypixel.hytale.component.ComponentAccessor;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -10,7 +11,6 @@ import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
-import com.hypixel.hytale.server.npc.role.Role;
 import com.hypixel.hytale.server.npc.role.support.StateSupport;
 import java.lang.reflect.Method;
 import java.util.Locale;
@@ -295,49 +295,30 @@ public final class DragonlingTamework {
 
     /** Top-level role state (e.g. Follow, Hold): {@link StateSupport#getStateName()} before the first {@code '.'}. */
     @Nullable
-    public static String getNpcRoleStateName(@Nonnull NPCEntity npc) {
-        Role role = npc.getRole();
-        if (role != null) {
-            StateSupport ss = role.getStateSupport();
-            if (ss != null) {
-                String full = ss.getStateName();
-                if (full != null && !full.isBlank()) {
-                    int dot = full.indexOf('.');
-                    if (dot > 0) {
-                        return full.substring(0, dot);
-                    }
-                    return full;
-                }
-            }
-        }
-        for (Object target : new Object[] {npc, role}) {
-            if (target == null) {
-                continue;
-            }
-            for (String method :
-                new String[] {"getState", "getCurrentState", "getStateName", "getPrimaryStateName"}) {
-                Object v = invokeNoArg(target, method);
-                if (v instanceof String s && !s.isBlank() && !s.contains(".")) {
-                    return s;
-                }
-                if (v instanceof Enum<?> e) {
-                    return e.name();
-                }
-            }
-        }
-        if (role == null) {
+    public static String getNpcRoleStateName(
+            @Nullable ComponentAccessor<EntityStore> accessor, @Nullable Ref<EntityStore> npcRef) {
+        if (accessor == null || npcRef == null || !npcRef.isValid()) {
             return null;
         }
-        Object support = invokeNoArg(role, "getStateSupport");
-        if (support == null) {
+        StateSupport ss = accessor.getComponent(npcRef, StateSupport.getComponentType());
+        if (ss != null) {
+            String full = ss.getStateName();
+            if (full != null && !full.isBlank()) {
+                int dot = full.indexOf('.');
+                if (dot > 0) {
+                    return full.substring(0, dot);
+                }
+                return full;
+            }
+        }
+        NPCEntity npc = accessor.getComponent(npcRef, NPCEntity.getComponentType());
+        if (npc == null) {
             return null;
         }
-        for (String method :
-            new String[] {"getState", "getCurrentState", "getStateName", "getPrimaryStateName"}) {
-            Object v = invokeNoArg(support, method);
-            if (v instanceof String s && !s.isBlank()) {
-                int dot = s.indexOf('.');
-                return dot > 0 ? s.substring(0, dot) : s;
+        for (String method : new String[] {"getState", "getCurrentState", "getStateName", "getPrimaryStateName"}) {
+            Object v = invokeNoArg(npc, method);
+            if (v instanceof String s && !s.isBlank() && !s.contains(".")) {
+                return s;
             }
             if (v instanceof Enum<?> e) {
                 return e.name();
@@ -350,15 +331,12 @@ public final class DragonlingTamework {
      * Whether harvest/water/furnace jobs should stop for this tick (whistle Hold, Follow away from home, combat, etc.).
      * {@code Idle} does not pause. Near the Set Home anchor, {@code Follow} still allows jobs.
      */
-    public static boolean shouldPauseHomeAssignmentWork(@Nonnull NPCEntity npc) {
-        return shouldPauseHomeAssignmentWork(npc, null, null);
-    }
-
+    @SuppressWarnings("unchecked")
     public static boolean shouldPauseHomeAssignmentWork(
             @Nonnull NPCEntity npc,
-            @Nullable CommandBuffer<EntityStore> buffer,
+            @Nullable ComponentAccessor<EntityStore> accessor,
             @Nullable Ref<EntityStore> npcRef) {
-        String s = getNpcRoleStateName(npc);
+        String s = getNpcRoleStateName(accessor, npcRef);
         if (s == null || s.isBlank()) {
             return false;
         }
@@ -367,9 +345,9 @@ public final class DragonlingTamework {
             return true;
         }
         if (u.equals("FOLLOW")
-            && buffer != null
+            && accessor instanceof CommandBuffer
             && npcRef != null
-            && isFollowWorkAtHomeNotRealFollow(buffer, npcRef, npc)) {
+            && isFollowWorkAtHomeNotRealFollow((CommandBuffer<EntityStore>) accessor, npcRef, npc)) {
             return false;
         }
         return u.equals("FOLLOW")
@@ -396,20 +374,23 @@ public final class DragonlingTamework {
         return dNpcHome <= FOLLOW_AT_HOME_MAX_DISTANCE_FROM_ANCHOR;
     }
 
-    public static boolean isHoldState(@Nonnull NPCEntity npc) {
-        String s = getNpcRoleStateName(npc);
+    public static boolean isHoldState(
+            @Nullable ComponentAccessor<EntityStore> accessor, @Nullable Ref<EntityStore> npcRef) {
+        String s = getNpcRoleStateName(accessor, npcRef);
         return s != null && s.equalsIgnoreCase("Hold");
     }
 
     /** True when Tamework role state is Follow (TP follow from NPC instructions, not Java seek). */
-    public static boolean isFollowState(@Nonnull NPCEntity npc) {
-        String s = getNpcRoleStateName(npc);
+    public static boolean isFollowState(
+            @Nullable ComponentAccessor<EntityStore> accessor, @Nullable Ref<EntityStore> npcRef) {
+        String s = getNpcRoleStateName(accessor, npcRef);
         return s != null && s.equalsIgnoreCase("Follow");
     }
 
     /** Only {@code Follow} should use {@link com.hexvane.dragonlings.MarkedEntitySeekBridge} toward the owner when a home is set. */
-    public static boolean shouldDriveOwnerFollowWithSeekBridge(@Nonnull NPCEntity npc) {
-        String s = getNpcRoleStateName(npc);
+    public static boolean shouldDriveOwnerFollowWithSeekBridge(
+            @Nullable ComponentAccessor<EntityStore> accessor, @Nullable Ref<EntityStore> npcRef) {
+        String s = getNpcRoleStateName(accessor, npcRef);
         return s != null && s.equalsIgnoreCase("Follow");
     }
 

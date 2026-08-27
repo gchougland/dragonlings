@@ -9,7 +9,6 @@ import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
-import com.hypixel.hytale.math.util.ChunkUtil;
 import org.joml.Vector3d;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockGathering;
@@ -21,7 +20,6 @@ import com.hypixel.hytale.server.core.modules.block.BlockModule;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.time.WorldTimeResource;
 import com.hypixel.hytale.server.core.universe.world.World;
-import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
@@ -30,6 +28,7 @@ import com.hexvane.dragonlings.behaviors.GreenDragonlingHarvestBehavior;
 import com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatBehavior;
 import com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener;
 import com.hexvane.dragonlings.behaviors.RedDragonlingFurnaceBehavior;
+import com.hexvane.dragonlings.world.ChunkSectionBlockUtil;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.UUID;
@@ -135,9 +134,9 @@ public final class DragonlingsDebugDump {
             out.append("Tamework home: null (no home in command-links)\n");
         }
 
-        String state = DragonlingTamework.getNpcRoleStateName(npc);
+        String state = DragonlingTamework.getNpcRoleStateName(store, ref);
         out.append("NPC role state: ").append(state != null ? state : "?").append('\n');
-        out.append("shouldPauseHomeWork: ").append(DragonlingTamework.shouldPauseHomeAssignmentWork(npc)).append('\n');
+        out.append("shouldPauseHomeWork: ").append(DragonlingTamework.shouldPauseHomeAssignmentWork(npc, store, ref)).append('\n');
 
         if (data != null) {
             out.append("DragonlingData: aiState=").append(data.getAIState());
@@ -197,12 +196,10 @@ public final class DragonlingsDebugDump {
                     int bx = centerX + dx;
                     int by = centerY + dy;
                     int bz = centerZ + dz;
-                    long chunkIdx = ChunkUtil.indexChunkFromBlock(bx, bz);
-                    WorldChunk wc = world.getChunkIfInMemory(chunkIdx);
-                    if (wc == null) {
+                    if (!ChunkSectionBlockUtil.isChunkInMemory(world, bx, bz)) {
                         continue;
                     }
-                    int blockId = wc.getBlock(bx, by, bz);
+                    int blockId = ChunkSectionBlockUtil.blockId(world, bx, by, bz);
                     if (blockId == 0) {
                         continue;
                     }
@@ -259,8 +256,7 @@ public final class DragonlingsDebugDump {
         boolean mature =
             GreenDragonlingHarvestBehavior.isMatureHarvestableCropForDebug(world, bx, by, bz, blockType);
 
-        WorldChunk wc = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(bx, bz));
-        Ref<ChunkStore> blockRef = wc != null ? wc.getBlockComponentEntity(bx, by, bz) : null;
+        Ref<ChunkStore> blockRef = ChunkSectionBlockUtil.blockEntityRefAt(world, bx, by, bz);
         if (blockRef == null) {
             blockRef = GreenDragonlingHarvestBehavior.resolveFarmingBlockEntityRefPublic(world, bx, by, bz);
         }
@@ -360,9 +356,7 @@ public final class DragonlingsDebugDump {
                 }
                 int bx = centerX + dx;
                 int bz = centerZ + dz;
-                long blockChunkIndex = ChunkUtil.indexChunkFromBlock(bx, bz);
-                WorldChunk blockChunk = world.getChunkIfInMemory(blockChunkIndex);
-                if (blockChunk == null) {
+                if (!ChunkSectionBlockUtil.isChunkInMemory(world, bx, bz)) {
                     continue;
                 }
                 for (int dy = -radius; dy <= radius && lines < maxLines; dy++) {
@@ -371,7 +365,7 @@ public final class DragonlingsDebugDump {
                     if (distanceSq > radiusSq) {
                         continue;
                     }
-                    int blockId = blockChunk.getBlock(bx, by, bz);
+                    int blockId = ChunkSectionBlockUtil.blockId(world, bx, by, bz);
                     if (blockId == 0) {
                         continue;
                     }
@@ -384,7 +378,7 @@ public final class DragonlingsDebugDump {
                     boolean isTilledSoilType =
                         blockTypeId != null && (blockTypeId.contains("Tilled") || blockTypeId.contains("Farmland"));
 
-                    Ref<ChunkStore> soilRef = blockChunk.getBlockComponentEntity(bx, by, bz);
+                    Ref<ChunkStore> soilRef = ChunkSectionBlockUtil.blockEntityRefAt(world, bx, by, bz);
                     TilledSoilBlock tilledSoil =
                         soilRef != null
                             ? chunkStore.getComponent(soilRef, TilledSoilBlock.getComponentType())
@@ -393,7 +387,7 @@ public final class DragonlingsDebugDump {
                     int waterY = by;
                     int waterZ = bz;
                     if (tilledSoil == null && farmingData != null && by > -60) {
-                        Ref<ChunkStore> belowRef = blockChunk.getBlockComponentEntity(bx, by - 1, bz);
+                        Ref<ChunkStore> belowRef = ChunkSectionBlockUtil.blockEntityRefAt(world, bx, by - 1, bz);
                         if (belowRef != null) {
                             tilledSoil =
                                 chunkStore.getComponent(belowRef, TilledSoilBlock.getComponentType());
@@ -466,8 +460,7 @@ public final class DragonlingsDebugDump {
             for (int dz = -radius; dz <= radius && lines < maxLines; dz++) {
                 int bx = centerX + dx;
                 int bz = centerZ + dz;
-                WorldChunk blockChunk = world.getChunkIfInMemory(ChunkUtil.indexChunkFromBlock(bx, bz));
-                if (blockChunk == null) {
+                if (!ChunkSectionBlockUtil.isChunkInMemory(world, bx, bz)) {
                     continue;
                 }
                 for (int dy = -radius; dy <= radius && lines < maxLines; dy++) {
@@ -476,7 +469,7 @@ public final class DragonlingsDebugDump {
                     if (distanceSq > radiusSq) {
                         continue;
                     }
-                    int blockId = blockChunk.getBlock(bx, by, bz);
+                    int blockId = ChunkSectionBlockUtil.blockId(world, bx, by, bz);
                     if (blockId == 0) {
                         continue;
                     }

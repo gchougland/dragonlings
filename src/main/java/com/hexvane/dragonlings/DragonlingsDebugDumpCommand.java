@@ -7,6 +7,7 @@ import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.permissions.HytalePermissions;
+import com.hypixel.hytale.server.core.permissions.PermissionQuery;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -15,13 +16,15 @@ import javax.annotation.Nonnull;
 
 final class DragonlingsDebugDumpCommand extends AbstractPlayerCommand {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+    private static final PermissionQuery PERM =
+        PermissionQuery.of(HytalePermissions.fromCommand("dragonlings", "debug_dump"));
 
     @Nonnull
     private final ComponentType<EntityStore, DragonlingData> dragonlingDataType;
 
     DragonlingsDebugDumpCommand(@Nonnull ComponentType<EntityStore, DragonlingData> dragonlingDataType) {
         super("debug_dump", "server.dragonlings.command.debug_dump.desc");
-        this.requirePermission(HytalePermissions.fromCommand("dragonlings", "debug_dump"));
+        this.requirePermission(PERM);
         this.dragonlingDataType = dragonlingDataType;
     }
 

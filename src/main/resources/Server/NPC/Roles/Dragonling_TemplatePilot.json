@@ -1,16 +1,26 @@
 {
-  "$Comment": "Experimental: Tamework Template_Tamework_Example_Simple (state machine + Follow_Simple_TP). Not used by world spawns — spawn manually to compare with Dragonling_Base + DragonlingAISystem. StartState Hold: wild behavior differs from Generic dragonling roles.",
+  "$Comment": "Experimental spawn (not used by world spawns). Tamework 3.2.2 no longer ships Template_Tamework_Example_Simple, so this variant inherits Dragonling_Base like the color roles. Use /dragonlings give … pilot to compare against Dragonling_Green.",
   "Type": "Variant",
-  "Reference": "Template_Tamework_Example_Simple",
+  "Reference": "Dragonling_Base",
   "Modify": {
     "Appearance": "Dragonling_Green",
     "MaxHealth": 50,
-    "MaxSpeed": 6,
+    "WanderRadius": 7,
+    "SlowDownDistance": { "Compute": "SlowDownDistance" },
+    "StopDistance": { "Compute": "StopDistance" },
     "NameTranslationKey": {
       "Compute": "NameTranslationKey"
     }
   },
   "Parameters": {
+    "SlowDownDistance": {
+      "Value": 1.5,
+      "Description": "Distance at which NPC starts slowing down when seeking"
+    },
+    "StopDistance": {
+      "Value": 1.0,
+      "Description": "Distance at which NPC stops when seeking"
+    },
     "NameTranslationKey": {
       "Value": "server.npcRoles.Dragonling_TemplatePilot.name",
       "Description": "Translation key for NPC name display"

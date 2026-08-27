@@ -12,6 +12,8 @@ import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hexvane.dragonlings.behaviors.BlueDragonlingWaterBehavior;
 import com.hexvane.dragonlings.behaviors.GreenDragonlingHarvestBehavior;
 import com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatBehavior;
+import com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener;
+import com.hexvane.dragonlings.behaviors.PurpleDragonlingProjectileFriendlyFireFilter;
 import com.hexvane.dragonlings.behaviors.RedDragonlingFurnaceBehavior;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -65,7 +67,8 @@ public class DragonlingsPlugin extends JavaPlugin {
             () -> this.tameCapConfig.get().getPurpleVoidProjectilePhysicalDamage();
         entityStoreRegistry.registerSystem(new PurpleDragonlingCombatBehavior(npcComponentType, purpleVoidProjectileDamage));
         entityStoreRegistry.registerSystem(
-            new com.hexvane.dragonlings.behaviors.PurpleDragonlingCombatListener(npcComponentType, purpleVoidProjectileDamage));
+            new PurpleDragonlingCombatListener(npcComponentType, purpleVoidProjectileDamage));
+        entityStoreRegistry.registerSystem(new PurpleDragonlingProjectileFriendlyFireFilter());
         entityStoreRegistry.registerSystem(new DragonlingAISystem(npcComponentType, this.dragonlingDataType));
         entityStoreRegistry.registerSystem(new DragonlingsTameCountDeathSystem(npcComponentType, this.tameCountStore));
 

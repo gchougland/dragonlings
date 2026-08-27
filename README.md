@@ -37,6 +37,7 @@ Each dragonling variant has unique behaviors when leashed:
 #### Green Dragonling
 - **Crop Harvesting**: Automatically harvests crops within its wander range
 - **Chest Storage**: Deposits harvested crops into a chest if the leashed block is a chest
+- **Replanting**: After harvesting a non-eternal crop, if the chest contains a matching regular seed, consumes one seed and plants it in the same plot. Eternal crops already regrow on their own.
 - Only harvests if leashed to a chest block
 
 #### Blue Dragonling
@@ -53,6 +54,7 @@ Each dragonling variant has unique behaviors when leashed:
 - **Combat Assistance**: Helps fight hostile entities you attack
 - Uses its `Blow` animation to spawn damaging void projectiles
 - Automatically targets enemies you're fighting
+- Void projectiles do not damage the owner or the owner’s other tamed pets
 - Works both when leashed and when following
 
 ### Additional Features
@@ -64,8 +66,8 @@ Each dragonling variant has unique behaviors when leashed:
 
 ## Requirements
 
-- **Hytale server** `^0.5.0` (stable 0.5.0)
-- **[Alec's Tamework!](https://www.curseforge.com/hytale/mods/alecs-tamework)** `>=2.11.2` — required at runtime ([file 8149204](https://www.curseforge.com/hytale/mods/alecs-tamework/files/8149204) for Hytale 0.5)
+- **Hytale server** `>=0.6.0-pre.0 <0.7.0` (Update 6)
+- **[Alec's Tamework!](https://www.curseforge.com/hytale/mods/alecs-tamework)** `>=3.2.2` — required at runtime ([file 8735884](https://www.curseforge.com/hytale/mods/alecs-tamework/files/8735884) for Hytale 0.6)
 - **Java 25+**
 - **Gradle** (for building)
 
@@ -94,7 +96,7 @@ Place both the Dragonlings JAR and the matching Tamework JAR in your server's `m
 ./gradlew runServer
 ```
 
-Dragonlings loads from your dev build via `runServer`. Place **Alec's Tamework!** ([Curse file 8149204](https://www.curseforge.com/hytale/mods/alecs-tamework/files/8149204)) in `run/mods/` (or your production server's `mods/` folder) next to the Dragonlings JAR.
+Dragonlings loads from your dev build via `runServer`. Place **Alec's Tamework!** ([Curse file 8735884](https://www.curseforge.com/hytale/mods/alecs-tamework/files/8735884)) in `run/mods/` (or your production server's `mods/` folder) next to the Dragonlings JAR.
 
 ## Usage
 

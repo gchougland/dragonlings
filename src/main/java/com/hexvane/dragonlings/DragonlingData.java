@@ -17,25 +17,31 @@ public class DragonlingData implements Component<EntityStore> {
     private static ComponentType<EntityStore, DragonlingData> componentType;
     
     public static final BuilderCodec<DragonlingData> CODEC = BuilderCodec.builder(DragonlingData.class, DragonlingData::new)
-        .addField(new KeyedCodec<>("Tamed", Codec.BOOLEAN), 
-            (data, tamed) -> data.isTamed = tamed, 
+        .append(new KeyedCodec<>("Tamed", Codec.BOOLEAN),
+            (data, tamed) -> data.isTamed = tamed,
             data -> data.isTamed)
-        .addField(new KeyedCodec<>("OwnerUUID", Codec.UUID_STRING), 
-            (data, uuid) -> data.ownerUUID = uuid, 
+        .add()
+        .append(new KeyedCodec<>("OwnerUUID", Codec.UUID_STRING),
+            (data, uuid) -> data.ownerUUID = uuid,
             data -> data.ownerUUID)
-        .addField(new KeyedCodec<>("Leashed", Codec.BOOLEAN), 
-            (data, leashed) -> data.isLeashed = leashed, 
+        .add()
+        .append(new KeyedCodec<>("Leashed", Codec.BOOLEAN),
+            (data, leashed) -> data.isLeashed = leashed,
             data -> data.isLeashed)
-        .addField(new KeyedCodec<>("LeashPos", Vector3dUtil.CODEC), 
-            (data, pos) -> data.leashPosition = pos != null ? new Vector3d(pos) : null, 
+        .add()
+        .append(new KeyedCodec<>("LeashPos", Vector3dUtil.CODEC),
+            (data, pos) -> data.leashPosition = pos != null ? new Vector3d(pos) : null,
             data -> data.leashPosition)
-        .addField(new KeyedCodec<>("LeashBlockType", Codec.STRING), 
-            (data, blockType) -> data.leashBlockType = blockType, 
+        .add()
+        .append(new KeyedCodec<>("LeashBlockType", Codec.STRING),
+            (data, blockType) -> data.leashBlockType = blockType,
             data -> data.leashBlockType)
-        .addField(new KeyedCodec<>("LeashRadius", Codec.DOUBLE), 
-            (data, radius) -> data.leashRadius = radius, 
+        .add()
+        .append(new KeyedCodec<>("LeashRadius", Codec.DOUBLE),
+            (data, radius) -> data.leashRadius = radius,
             data -> data.leashRadius)
-        .addField(new KeyedCodec<>("AIState", Codec.STRING), 
+        .add()
+        .append(new KeyedCodec<>("AIState", Codec.STRING),
             (data, stateStr) -> {
                 if (stateStr != null) {
                     try {
@@ -46,14 +52,17 @@ public class DragonlingData implements Component<EntityStore> {
                 } else {
                     data.aiState = DragonlingAIState.WANDER;
                 }
-            }, 
+            },
             data -> data.aiState != null ? data.aiState.name() : DragonlingAIState.WANDER.name())
-        .addField(new KeyedCodec<>("TargetPos", Vector3dUtil.CODEC), 
-            (data, pos) -> data.targetPosition = pos != null ? new Vector3d(pos) : null, 
+        .add()
+        .append(new KeyedCodec<>("TargetPos", Vector3dUtil.CODEC),
+            (data, pos) -> data.targetPosition = pos != null ? new Vector3d(pos) : null,
             data -> data.targetPosition)
-        .addField(new KeyedCodec<>("TameNotifySent", Codec.BOOLEAN),
+        .add()
+        .append(new KeyedCodec<>("TameNotifySent", Codec.BOOLEAN),
             (data, v) -> data.tameNotifySent = v != null && v,
             data -> data.tameNotifySent)
+        .add()
         .build();
     
     private boolean isTamed;

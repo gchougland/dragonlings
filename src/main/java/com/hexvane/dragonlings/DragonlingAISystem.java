@@ -105,7 +105,7 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
 
         // Wild, no home: clear seek so default (0,0,0) is not used as a target near world origin.
         if (!tamedTw && !hasHome) {
-            MarkedEntitySeekBridge.clearSeekPosition(role);
+            MarkedEntitySeekBridge.clearSeekPosition(store, npcRef);
             return;
         }
         
@@ -122,12 +122,12 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
                 data.setAIState(DragonlingAIState.WANDER);
                 data.setTargetPosition(null);
             }
-            boolean followCmd = DragonlingTamework.isFollowState(npcComponent);
-            boolean holdCmd = DragonlingTamework.isHoldState(npcComponent);
+            boolean followCmd = DragonlingTamework.isFollowState(store, npcRef);
+            boolean holdCmd = DragonlingTamework.isHoldState(store, npcRef);
             if (!followCmd && !holdCmd) {
-                MarkedEntitySeekBridge.clearSeekPosition(role);
+                MarkedEntitySeekBridge.clearSeekPosition(store, npcRef);
             }
-            if (DragonlingTamework.shouldDriveOwnerFollowWithSeekBridge(npcComponent)) {
+            if (DragonlingTamework.shouldDriveOwnerFollowWithSeekBridge(store, npcRef)) {
                 data.setAIState(DragonlingAIState.FOLLOW_OWNER);
             }
             commandBuffer.putComponent(npcRef, this.dragonlingDataType, data);
@@ -143,15 +143,15 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
             aiState == DragonlingAIState.WATER_CROPS);
 
         if (isSeekState && hasHome) {
-            handleSeekState(npcRef, npcComponent, role, data, store, commandBuffer);
+            handleSeekState(npcRef, npcComponent, data, store, commandBuffer);
         } else if (isSeekState && !hasHome) {
-            MarkedEntitySeekBridge.clearSeekPosition(role);
+            MarkedEntitySeekBridge.clearSeekPosition(store, npcRef);
             data.setAIState(DragonlingAIState.WANDER);
             data.setTargetPosition(null);
         } else if (tamedTw && !hasHome) {
-            MarkedEntitySeekBridge.clearSeekPosition(role);
+            MarkedEntitySeekBridge.clearSeekPosition(store, npcRef);
             data.setAIState(DragonlingAIState.FOLLOW_OWNER);
-            handleFollowing(npcRef, npcComponent, role, data, store, commandBuffer);
+            handleFollowing(npcRef, npcComponent, data, store, commandBuffer);
         } else if (hasHome) {
             // Sync leash point to home once per home-position change so vanilla
             // WanderInCircle uses the correct anchor.  Do NOT re-set it every tick —
@@ -164,8 +164,8 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
 
             // Clear mod seek when not on Tamework Follow — otherwise passive follow (handleFollowing) leaves a stale
             // seek target and Idle / Return Home still chase the owner.
-            if (!DragonlingTamework.shouldDriveOwnerFollowWithSeekBridge(npcComponent)) {
-                MarkedEntitySeekBridge.clearSeekPosition(role);
+            if (!DragonlingTamework.shouldDriveOwnerFollowWithSeekBridge(store, npcRef)) {
+                MarkedEntitySeekBridge.clearSeekPosition(store, npcRef);
             }
 
             // Transition from mod-driven follow to idle-at-home (home takes priority
@@ -185,7 +185,6 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
     private void handleFollowing(
             @Nonnull Ref<EntityStore> npcRef,
             @Nonnull NPCEntity npcComponent,
-            @Nonnull Role role,
             @Nonnull DragonlingData data,
             @Nonnull Store<EntityStore> store,
             @Nonnull CommandBuffer<EntityStore> commandBuffer) {
@@ -199,7 +198,7 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
         Ref<EntityStore> ownerRef = findPlayerByUUID(store, ownerUUID);
         if (ownerRef == null || !ownerRef.isValid()) {
             // Owner not found, clear target position so NPC stops seeking
-            MarkedEntitySeekBridge.clearSeekPosition(role);
+            MarkedEntitySeekBridge.clearSeekPosition(store, npcRef);
             return;
         }
         
@@ -247,9 +246,9 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
         }
 
         if (distance <= holdFollowDistance) {
-            MarkedEntitySeekBridge.setSeekPosition(role, npcPos);
+            MarkedEntitySeekBridge.setSeekPosition(store, npcRef, npcPos);
         } else {
-            MarkedEntitySeekBridge.setSeekPosition(role, followTargetPos);
+            MarkedEntitySeekBridge.setSeekPosition(store, npcRef, followTargetPos);
         }
     }
 
@@ -257,7 +256,6 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
     private void handleSeekState(
             @Nonnull Ref<EntityStore> npcRef,
             @Nonnull NPCEntity npcComponent,
-            @Nonnull Role role,
             @Nonnull DragonlingData data,
             @Nonnull Store<EntityStore> store,
             @Nonnull CommandBuffer<EntityStore> commandBuffer) {
@@ -265,13 +263,13 @@ public class DragonlingAISystem extends EntityTickingSystem<EntityStore> {
         Vector3d targetPos = data.getTargetPosition();
         if (targetPos == null) {
             // No target, reset to WANDER and clean up
-            MarkedEntitySeekBridge.clearSeekPosition(role);
+            MarkedEntitySeekBridge.clearSeekPosition(store, npcRef);
             data.setAIState(DragonlingAIState.WANDER);
             data.setTargetPosition(null);
             return;
         }
         
-        MarkedEntitySeekBridge.setSeekPosition(role, targetPos);
+        MarkedEntitySeekBridge.setSeekPosition(store, npcRef, targetPos);
     }
     
     /**
