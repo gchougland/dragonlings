@@ -44,7 +44,7 @@ public final class ChunkSectionBlockUtil {
 
     @Nullable
     public static Ref<ChunkStore> sectionRefAt(@Nonnull World world, int worldX, int worldY, int worldZ) {
-        if (worldY < ChunkUtil.MIN_Y || worldY > ChunkUtil.HEIGHT_MINUS_1) {
+        if (worldY < ChunkUtil.MIN_Y) {
             return null;
         }
         Ref<ChunkStore> sectionRef = world.getChunkStore().getChunkSectionReferenceAtBlock(worldX, worldY, worldZ);

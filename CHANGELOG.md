@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] - 2026-10-12 (Hytale Update 7)
+
+### Requirements
+
+- **Hytale** `>=0.7.0-pre.0 <0.8.0` (Update 7)
+- **Alec's Tamework!** `>=5.2.1` — use [CurseForge file 9110009](https://www.curseforge.com/hytale/mods/alecs-tamework/files/9110009) (v5.2.1) in the server `mods/` folder alongside Dragonlings
+
+### Changed
+
+- **Hytale Update 7** — Dragonlings now runs on Hytale Update 7 (0.7.0) and needs Alec's Tamework! 5.2.1 or newer.
+
 ## [2.3.0] - 8/27/2026 (Hytale Update 6)
 
 ### Requirements

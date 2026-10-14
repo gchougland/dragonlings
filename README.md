@@ -66,8 +66,8 @@ Each dragonling variant has unique behaviors when leashed:
 
 ## Requirements
 
-- **Hytale server** `>=0.6.0-pre.0 <0.7.0` (Update 6)
-- **[Alec's Tamework!](https://www.curseforge.com/hytale/mods/alecs-tamework)** `>=3.2.2` — required at runtime ([file 8735884](https://www.curseforge.com/hytale/mods/alecs-tamework/files/8735884) for Hytale 0.6)
+- **Hytale server** `>=0.7.0-pre.0 <0.8.0` (Update 7)
+- **[Alec's Tamework!](https://www.curseforge.com/hytale/mods/alecs-tamework)** `>=5.2.1` — required at runtime ([file 9110009](https://www.curseforge.com/hytale/mods/alecs-tamework/files/9110009) for Hytale 0.7)
 - **Java 25+**
 - **Gradle** (for building)
 
@@ -96,7 +96,7 @@ Place both the Dragonlings JAR and the matching Tamework JAR in your server's `m
 ./gradlew runServer
 ```
 
-Dragonlings loads from your dev build via `runServer`. Place **Alec's Tamework!** ([Curse file 8735884](https://www.curseforge.com/hytale/mods/alecs-tamework/files/8735884)) in `run/mods/` (or your production server's `mods/` folder) next to the Dragonlings JAR.
+Dragonlings loads from your dev build via `runServer`. Place **Alec's Tamework!** ([Curse file 9110009](https://www.curseforge.com/hytale/mods/alecs-tamework/files/9110009)) in `run/mods/` (or your production server's `mods/` folder) next to the Dragonlings JAR.
 
 ## Usage
 

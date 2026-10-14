@@ -566,7 +566,7 @@ public class GreenDragonlingHarvestBehavior extends EntityTickingSystem<EntitySt
             if (blockId == 0) {
                 continue;
             }
-            int above = y < ChunkUtil.HEIGHT_MINUS_1 ? ChunkSectionBlockUtil.blockId(world, bx, y + 1, bz) : 0;
+            int above = ChunkSectionBlockUtil.blockId(world, bx, y + 1, bz);
             if (above == 0) {
                 return new Vector3d(bx + 0.5, y + 1.0, bz + 0.5);
             }
